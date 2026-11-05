@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SETECSI S.A. - Control Maestro de Gases</title>
+    
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+    
+    <style>
+        :root { --primary: #2c3e50; --success: #27ae60; --danger: #e74c3c; --warning: #f39c12; --info: #3498db; --purple: #8e44ad; --dark-orange: #d35400; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f7f6; padding-bottom: 70px; }
+        
+        header { 
+            background-image: linear-gradient(rgba(44, 62, 80, 0.85), rgba(44, 62, 80, 0.85)), url('fondo.jpg');
+            background-size: cover; background-position: center; padding: 20px; display: flex; align-items: center; gap: 20px; position: relative; border-bottom: 4px solid var(--danger); box-shadow: 0 4px 15px rgba(0,0,0,0.2); color: white;
+        }
+        
+        .logo-img { height: 80px; width: auto; object-fit: contain; background: white; padding: 5px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .header-text { text-align: left; flex: 1; }
+        .titulo-secreto { cursor: pointer; display: inline-block; margin: 0; font-size: 1.8rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+        .subtitulo-header { margin: 5px 0 0 0; font-size: 0.9rem; color: #ecf0f1; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+        .nube-status { position: absolute; top: 15px; right: 20px; font-size: 0.85rem; font-weight: bold; background: rgba(255,255,255,0.9); color: var(--primary); padding: 6px 12px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        .container { max-width: 1100px; margin: 20px auto; padding: 0 15px; }
+        .nav-bar { display: flex; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; margin-bottom: 20px; flex-wrap: wrap; }
+        .nav-btn { flex: 1; min-width: 150px; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; color: #7f8c8d; border-bottom: 3px solid transparent; transition: 0.3s; }
+        .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); background: #f8f9fa; }
+        
+        .modulo { display: none; }
+        .modulo.activo { display: block; }
+
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid var(--primary); }
+        .gas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 0.85rem; }
+        .gas-item { display: flex; justify-content: space-between; background: #f9f9f9; padding: 4px 8px; border-radius: 3px; align-items: center; }
+        .gas-link { cursor: pointer; color: var(--info); text-decoration: underline; font-weight: bold; }
+        
+        .form-box, .search-box { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .mode-btn { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center; min-width: 120px;}
+        .mode-btn.active { border-color: var(--info); background: #ebf5fb; color: var(--info); }
+        .mode-btn.active-inv { border-color: var(--purple); background: #f4ecf7; color: var(--purple); }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;}
+        
+        .sugerencias-box { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 5px 5px; max-height: 150px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
+        .sugerencia-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        .sugerencia-item:hover { background-color: #f1f2f6; }
+
+        .action-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 20px; }
+        .btn { padding: 15px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-peligro { background: var(--danger); padding: 8px 12px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
+        .data-table th { background: var(--primary); color: white; padding: 10px; text-align: left; }
+        .data-table td { padding: 10px; border-bottom: 1px solid #eee; }
+        
+        .btn-finalizar { background: var(--purple); width: 100%; margin-top: 20px; font-size: 1.1rem; padding: 20px; cursor: pointer; color: white; border: none; border-radius: 5px; font-weight: bold;}
+        
+        .admin-section { margin-top: 30px; padding-top: 20px; border-top: 2px dashed #ddd; }
+        .upload-area { background: #f8f9fa; border: 2px dashed var(--info); padding: 20px; border-radius: 8px; text-align: center; }
+        
+        .alerta-ph-5 { background-color: #fff3cd; color: #856404; padding: 5px; border-radius: 3px; font-weight: bold;}
+        .alerta-ph-10 { background-color: #f8d7da; color: #721c24; padding: 5px; border-radius: 3px; font-weight: bold;}
+
+        #modal-escaner, #modal-correccion { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; justify-content:center; align-items:center; }
+        
+        .btn-estado { padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center; flex: 1; transition: 0.3s; }
+        .btn-estado.selected-lleno { background: var(--success); color: white; border-color: var(--success); }
+        .btn-estado.selected-vacio { background: var(--warning); color: white; border-color: var(--warning); }
+        .btn-estado.selected-rechazo { background: var(--danger); color: white; border-color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<header>
+    <img src="logo.png" alt="SETECSI S.A." class="logo-img">
+    <div class="header-text">
+        <h1 class="titulo-secreto" onclick="abrirPanelAdmin()" title="Opciones avanzadas">SETECSI S.A.</h1>
+        <p class="subtitulo-header">Gestión de Cilindros y Control de Trazabilidad</p>
+    </div>
+    <div id="nube-status" class="nube-status"><i class="fas fa-sync fa-spin"></i> Conectando a Sheets...</div>
+</header>
+
+<div class="container">
+    <div class="nav-bar">
+        <div class="nav-btn active" onclick="cambiarModulo('mod-inicio', this)">Inicio</div>
+        <div class="nav-btn" onclick="cambiarModulo('mod-registro', this)">Registrar Operación</div>
+        <div class="nav-btn" onclick="cambiarModulo('mod-busqueda', this)">Búsqueda Histórica</div>
+        <div class="nav-btn" onclick="cambiarModulo('mod-ph', this); calcularAlertasPH();"><i class="fas fa-shield-alt"></i> Control P.H.</div>
+        <div class="nav-btn" onclick="cambiarModulo('mod-finanzas', this); cargarModuloFinanzas();"><i class="fas fa-wallet"></i> Balance Financiero</div>
+    </div>
+
+    <div id="mod-inicio" class="modulo activo">
+        <div class="dashboard">
+            <div class="stat-card" style="border-top-color: var(--success);"><div id="grid-llenos" class="gas-grid"></div></div>
+            <div class="stat-card" style="border-top-color: var(--warning);"><div id="grid-vacios" class="gas-grid"></div></div>
+            <div class="stat-card" style="border-top-color: var(--danger);"><div id="grid-rechazos" class="gas-grid"></div></div>
+        </div>
+        <div id="detalle-dashboard" style="display:none; margin-top:25px; background:white; padding:20px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.1);"></div>
+    </div>
+
+    <div id="mod-registro" class="modulo">
+        <div class="form-box">
+            <div class="mode-selector">
+                <div id="m-cli" class="mode-btn active" onclick="cambiarModo('CLIENTE')">CLIENTE</div>
+                <div id="m-pro" class="mode-btn" onclick="cambiarModo('PROVEEDOR')">PROVEEDOR</div>
+                <div id="m-inv" class="mode-btn" onclick="cambiarModo('INVENTARIO')"><i class="fas fa-boxes"></i> STOCK INICIAL</div>
+            </div>
+            
+            <div class="grid" id="grid-entidad" style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <div><label id="lbl-entidad">Nombre / Razón Social:</label>
+                    <div style="position: relative;">
+                        <input type="text" id="nombre-ent" placeholder="Ej: Juan Pérez" oninput="autocompletar('nombre')" autocomplete="off">
+                        <div id="sugerencias-clientes" class="sugerencias-box"></div>
+                    </div>
+                </div>
+                <div><label>RUT:</label>
+                    <input type="text" id="rut-ent" placeholder="Ej: 11.111.111-1" oninput="autocompletar('rut')">
+                </div>
+            </div>
+
+            <div class="grid">
+                <div>
+                    <label>N° Serie:</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="serie" placeholder="Escanear o escribir..." oninput="autocompletarCilindro()" style="flex: 1;">
+                        <button onclick="iniciarEscaner()" style="background: var(--primary); color: white; border: none; border-radius: 5px; padding: 0 18px; cursor: pointer;" title="Escanear con Cámara"><i class="fas fa-camera" style="font-size: 1.3rem;"></i></button>
+                        <button onclick="imprimirEtiquetaCilindro()" style="background: var(--info); color: white; border: none; border-radius: 5px; padding: 0 18px; cursor: pointer;" title="Imprimir Código de Barras"><i class="fas fa-print" style="font-size: 1.3rem;"></i></button>
+                    </div>
+                </div>
+                <div><label>Gas:</label>
+                    <select id="gas">
+                        <option value="" disabled selected>-- Seleccione Gas --</option>
+                        <option>Argón</option><option>Mezcla</option><option>Nitrógeno</option>
+                        <option>Oxígeno</option><option>CO2</option><option>Acetileno</option>
+                    </select>
+                </div>
+                <div><label>Capacidad:</label>
+                    <select id="m3">
+                        <option value="" disabled selected>-- Seleccione Capacidad --</option>
+                        <option>1m3</option><option>2m3</option><option>3m3</option><option>4m3</option>
+                        <option>6m3</option><option>8m3</option><option>9m3</option><option>10m3</option>
+                        <option>1kg</option><option>2kg</option><option>3kg</option><option>4kg</option><option>5kg</option>
+                        <option>6kg</option><option>7kg</option><option>9kg</option>
+                        <option>25kg</option><option>30kg</option>
+                    </select>
+                </div>
+                <div><label>Prueba Hidráulica (Mes/Año):</label>
+                    <input type="month" id="ph" title="Seleccione el mes y año de la última prueba">
+                </div>
+            </div>
+            
+            <div class="action-btns">
+                <button class="btn" style="background: var(--success);" onclick="agregarALista('ENTREGA')"><span id="txt-btn-1">Entregar Lleno</span></button>
+                <button class="btn" style="background: var(--warning);" onclick="agregarALista('RECEPCION')"><span id="txt-btn-2">Recibir Vacío</span></button>
+                <button class="btn" id="btn-rechazo" style="background: var(--danger);" onclick="agregarALista('RECHAZO')"><span id="txt-btn-3">Marcar Rechazo</span></button>
+            </div>
+
+            <div class="temp-list">
+                <table class="data-table" id="tabla-temporal-container" style="display:none;">
+                    <thead><tr><th>Serie</th><th>Gas</th><th>P.H.</th><th>Movimiento</th><th>Acción</th></tr></thead>
+                    <tbody id="lista-temporal"></tbody>
+                </table>
+                <button class="btn btn-finalizar" id="btn-finalizar" style="display:none;" onclick="finalizarOperacion()">
+                    <i class="fas fa-file-pdf"></i> FINALIZAR Y GUARDAR EN SHEETS
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mod-busqueda" class="modulo">
+        <div class="search-box">
+            <div class="grid">
+                <div>
+                    <label>Categoría de Búsqueda:</label>
+                    <select id="tipo-busqueda" onchange="configurarBuscador()">
+                        <option value="gas">Por Gas (Series sin repetir)</option>
+                        <option value="serie">Por Serie (Registro histórico)</option>
+                        <option value="cliente">Por Cliente / Proveedor</option>
+                        <option value="folio">Por N° de Vale PDF</option>
+                    </select>
+                </div>
+                <div id="div-input-busqueda"></div>
+            </div>
+
+            <button onclick="exportarAExcel()" style="background: #27ae60; color: white; padding: 12px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 15px; width: 100%; font-size: 1rem;">
+                <i class="fas fa-file-excel"></i> Descargar Historial Completo en Excel
+            </button>
+
+            <div id="resultados-busqueda" style="overflow-x: auto; margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <div id="mod-ph" class="modulo">
+        <div class="form-box">
+            <h2 style="color: var(--primary); margin-top:0;"><i class="fas fa-shield-alt"></i> Radar de Pruebas Hidráulicas</h2>
+            <input type="text" id="filtro-ph" placeholder="🔍 Buscar serie en el registro..." onkeyup="calcularAlertasPH()" style="margin-bottom: 15px; border: 1px solid #ccc; width: 100%; padding: 10px; border-radius: 5px; box-sizing: border-box;">
+            
+            <h3 style="color: var(--danger); border-bottom: 2px solid var(--danger); padding-bottom: 5px;">⚠️ Alertas Críticas y Próximos Vencimientos</h3>
+            <div style="overflow-x: auto; margin-bottom: 30px;">
+                <table class="data-table">
+                    <thead><tr><th>Serie</th><th>Gas</th><th>Fecha P.H.</th><th>Estado / Alerta</th><th>Ubicación Actual</th></tr></thead>
+                    <tbody id="lista-alertas-ph"></tbody>
+                </table>
+            </div>
+
+            <h3 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px;">📋 Registro General</h3>
+            <div style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead><tr><th>Serie</th><th>Gas</th><th>Fecha P.H.</th><th>Ubicación Actual</th></tr></thead>
+                    <tbody id="lista-todo-ph"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="mod-finanzas" class="modulo">
+        <div class="form-box" style="border-top: 5px solid var(--success);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                <h2 style="color: var(--primary); margin:0;"><i class="fas fa-chart-line"></i> Panel de Control Financiero</h2>
+                <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                    <button onclick="abrirCajaTarifasOculta()" style="background: var(--purple); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;"><i class="fas fa-cog"></i> Ajustes de Tarifas</button>
+                    <div style="background: #f1f2f6; padding: 5px 15px; border-radius: 8px; border: 1px solid #ccc; display: flex; align-items: center; gap: 10px;">
+                        <label style="font-weight: bold; color: var(--primary);"><i class="fas fa-calendar-alt"></i> Mes:</label>
+                        <input type="month" id="filtro-mes-finanzas" onchange="cargarModuloFinanzas()" style="padding: 5px; border-radius: 5px; border: 1px solid #aaa; font-size: 1rem; cursor: pointer;">
+                        <button onclick="document.getElementById('filtro-mes-finanzas').value=''; cargarModuloFinanzas();" style="background: var(--danger); color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-weight: bold;">X</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard" style="margin-bottom: 25px;">
+                <div class="stat-card" style="border-top-color: var(--info); cursor: pointer;" onclick="toggleDetalleGases('detalle-ventas-gas')" title="Clic para ver detalle">
+                    <span style="color:#7f8c8d; font-size:0.9rem; font-weight:bold;">INGRESOS (VENTAS) &nbsp;<i class="fas fa-eye" style="font-size:0.8rem;"></i></span>
+                    <h2 id="fin-total-ventas" style="margin:10px 0 0 0; color:var(--info); font-size:2rem;">$0</h2>
+                    <div id="detalle-ventas-gas" style="display:none; margin-top:10px; font-size:0.85rem; color:#333; border-top:1px solid #eee; padding-top:8px; text-align:left;"></div>
+                </div>
+                <div class="stat-card" style="border-top-color: var(--danger); cursor: pointer;" onclick="toggleDetalleGases('detalle-costos-gas')" title="Clic para ver detalle">
+                    <span style="color:#7f8c8d; font-size:0.9rem; font-weight:bold;">COSTOS (COMPRAS) &nbsp;<i class="fas fa-eye" style="font-size:0.8rem;"></i></span>
+                    <h2 id="fin-total-costos" style="margin:10px 0 0 0; color:var(--danger); font-size:2rem;">$0</h2>
+                    <div id="detalle-costos-gas" style="display:none; margin-top:10px; font-size:0.85rem; color:#333; border-top:1px solid #eee; padding-top:8px; text-align:left;"></div>
+                </div>
+                <div class="stat-card" style="border-top-color: var(--success);">
+                    <span style="color:#7f8c8d; font-size:0.9rem; font-weight:bold;">UTILIDAD NETA (GANANCIA)</span>
+                    <h2 id="fin-total-utilidad" style="margin:10px 0 0 0; color:var(--success); font-size:2rem;">$0</h2>
+                </div>
+            </div>
+
+            <div id="caja-ajustes-tarifas-oculta" style="display: none; background: #f8f9fa; border: 2px dashed var(--purple); padding: 20px; border-radius: 10px; margin-bottom: 25px;"></div>
+
+            <h3 style="color: var(--success); border-bottom: 2px solid var(--success); padding-bottom: 5px; margin-top:30px;"><i class="fas fa-boxes"></i> Inversión Retenida en Bodega</h3>
+            <div id="contenedor-balance-financiero" style="margin-bottom: 30px;"></div>
+
+            <h3 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px; margin-top:30px;">📋 Detalle de Transacciones Comerciales</h3>
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="tabla-finanzas-registro">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Vale</th>
+                            <th>Cliente</th>
+                            <th>Gas / Metraje</th>
+                            <th>Costo Prov.</th>
+                            <th>Precio Venta</th>
+                            <th>Margen Neto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-finanzas-cuerpo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+   <div id="mod-admin" class="modulo">
+        <div class="form-box" style="border-top: 5px solid var(--danger);">
+            <h2 style="color: var(--danger); margin-top:0;"><i class="fas fa-user-shield"></i> Panel Maestro (Modo Excel)</h2>
+            <p><strong>ATENCIÓN:</strong> Has migrado con éxito a Google Apps Script. Las ediciones profundas, eliminación de vales, fusiones y correcciones maestras ahora se realizan directamente abriendo tu archivo de Google Sheets. Es mucho más rápido, seguro y no requiere paneles complejos aquí.</p>
+            <a href="#" onclick="alert('Abre tu Google Drive y busca el archivo Excel llamado Base de Datos - SETECSI Gases para editar los registros manualmente.')" style="display: block; padding: 15px; background: var(--success); color: white; text-align: center; text-decoration: none; border-radius: 5px; font-weight: bold;">Ir a Google Sheets</a>
+        </div>
+    </div>
+
+<div id="modal-escaner">
+    <div style="width: 90%; max-width: 500px; background: white; padding: 20px; border-radius: 10px; text-align: center;">
+        <h3 style="margin-top:0; color:var(--primary);"><i class="fas fa-barcode"></i> Escaneando...</h3>
+        <div id="reader" style="width:100%; min-height: 250px;"></div>
+        <button onclick="cerrarEscaner()" style="margin-top: 20px; background: var(--danger); padding: 12px 20px; color: white; border: none; border-radius: 5px; font-weight: bold; width: 100%; cursor: pointer;">Cerrar Cámara</button>
+    </div>
+</div>
+
+<script>
+    // NUEVO CEREBRO DEL SISTEMA: URL DE GOOGLE APPS SCRIPT
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgFQp5_Rt4X09mj1KOd1DsVvx_hz6Xs7LRdusxnxKhSotgYeltMTfK0p5BofNM794/exec";
+
+    let nubeLista = false;
+    const gases = ["Argón", "Mezcla", "Nitrógeno", "Oxígeno", "CO2", "Acetileno"];
+    
+    // Tarifas predeterminadas cargadas localmente (puedes editarlas en el código o crear pestaña en Excel a futuro)
+    let tarifasProveedores = {
+        "CRIOGAS": { "Argón": 4000, "Nitrógeno": 3000, "Mezcla": 4200, "Oxígeno": 2000, "CO2": 1500, "Acetileno": 3500 },
+        "COMPRESION": { "Argón": 4500, "Nitrógeno": 2500, "Mezcla": 4500, "Oxígeno": 2200, "CO2": 1600, "Acetileno": 3800 },
+        "VYS": { "Argón": 3800, "Nitrógeno": 3000, "Mezcla": 4000, "Oxígeno": 1900, "CO2": 1400, "Acetileno": 3400 }
+    };
+    let tarifasGasesBase = {
+        "Argón": { venta: 10000 },
+        "Mezcla": { venta: 11000 },
+        "Nitrógeno": { venta: 8000 },
+        "Oxígeno": { venta: 6000 },
+        "CO2": { venta: 7000 },
+        "Acetileno": { venta: 15000 }
+    };
+
+    let inventario = { llenos: {}, vacios: {}, rechazos: {} };
+    let operacionActual = [];
+    let historialGlobal = []; 
+    let estadoCilindros = {}; 
+    let baseClientes = [];  
+    let folioActual = 1;      
+    let modoActual = 'CLIENTE';
+
+    // --- FUNCIÓN MAESTRA DE ARRANQUE DESDE GOOGLE SHEETS ---
+    async function iniciarSistema() {
+        try {
+            document.getElementById('nube-status').innerHTML = '<i class="fas fa-sync fa-spin"></i> Descargando Excel...';
+            
+            const respuesta = await fetch(SCRIPT_URL + "?accion=descargarTodo");
+            const data = await respuesta.json();
+            
+            if(data.exito) {
+                // 1. Cargar Folio
+                data.configuracion.forEach(row => {
+                    if (row.Parametro === 'Folio') folioActual = parseInt(row.Valor) || 1;
+                });
+
+                // 2. Cargar Clientes
+                baseClientes = data.clientes.map(c => ({
+                    nombre: c.Nombre,
+                    rut: c.RUT,
+                    preciosEspeciales: c['Precios Especiales'] ? JSON.parse(c['Precios Especiales']) : null
+                }));
+
+                // 3. Cargar Cilindros de Bodega
+                estadoCilindros = {};
+                data.cilindros.forEach(c => {
+                    if (c.Serie) {
+                        estadoCilindros[String(c.Serie)] = {
+                            gas: c.Gas, m3: c.Metraje, ph: c.PH,
+                            ubicacion: c.Ubicacion, estadoFisico: c['Estado Fisico'],
+                            entidadActual: c['Entidad Actual'], ultimoMov: c['Ultimo Mov'],
+                            fecha: c.Fecha, folio: c.Folio, costoAdquisicion: c['Costo Adquisicion']
+                        };
+                    }
+                });
+
+                // 4. Cargar Historial
+                historialGlobal = data.historial.map(h => ({
+                    folio: String(h.Folio).padStart(4, '0'),
+                    fecha: h.Fecha,
+                    ts: h.Timestamp,
+                    serie: String(h.Serie),
+                    gas: h.Gas,
+                    m3: h.Metraje,
+                    ph: h.PH,
+                    entidad: h.Entidad,
+                    rut: h.RUT,
+                    tipoMov: h['Tipo Mov'],
+                    descripcionMov: h.Descripcion,
+                    ubicacionFutura: h['Ubicacion Futura'],
+                    estadoFuturo: h['Estado Futuro'],
+                    modo: h.Modo,
+                    costoHistorico: h['Costo Historico'],
+                    ventaHistorica: h['Venta Historica']
+                })).filter(h => h.serie && h.serie !== "undefined").sort((a, b) => b.ts - a.ts);
+
+                nubeLista = true;
+                actualizarDashboard();
+                document.getElementById('nube-status').innerHTML = '<i class="fas fa-check-circle" style="color:#2ecc71;"></i> Nube Conectada';
+            } else {
+                throw new Error("Respuesta del servidor inválida.");
+            }
+        } catch(error) {
+            console.error(error);
+            document.getElementById('nube-status').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> Error de Google Sheets';
+        }
+    }
+    
+    window.onload = iniciarSistema;
+
+    let html5QrcodeScanner = null;
+    function iniciarEscaner() {
+        document.getElementById('modal-escaner').style.display = 'flex';
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+            html5QrcodeScanner.render(onScanSuccess, (err) => {});
+        }
+    }
+    function onScanSuccess(text) {
+        document.getElementById('serie').value = text.trim().toUpperCase();
+        cerrarEscaner(); autocompletarCilindro();
+    }
+    function cerrarEscaner() {
+        document.getElementById('modal-escaner').style.display = 'none';
+        if(html5QrcodeScanner) { html5QrcodeScanner.clear(); html5QrcodeScanner = null; }
+    }
+
+    function exportarAExcel() {
+        if(historialGlobal.length === 0) return alert("Sin datos históricos para exportar.");
+        const ws = XLSX.utils.json_to_sheet(historialGlobal.map(h => ({ "Fecha": h.fecha, "Vale": h.folio, "Serie": h.serie, "Gas": h.gas, "Movimiento": h.descripcionMov, "Entidad": h.entidad, "RUT": h.rut, "Estado": h.estadoFuturo })));
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Historial");
+        XLSX.writeFile(wb, `Reporte_SETECSI_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    function cambiarModulo(id, btn) {
+        document.querySelectorAll('.modulo').forEach(m => m.classList.remove('activo'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('activo');
+        if(btn) btn.classList.add('active');
+        document.getElementById('detalle-dashboard').style.display = 'none';
+    }
+
+    function cambiarModo(modo) {
+        modoActual = modo;
+        document.getElementById('m-cli').className = modo === 'CLIENTE' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('m-pro').className = modo === 'PROVEEDOR' ? 'mode-btn active' : 'mode-btn';
+        document.getElementById('m-inv').className = modo === 'INVENTARIO' ? 'mode-btn active-inv' : 'mode-btn';
+        document.getElementById('grid-entidad').style.display = modo === 'INVENTARIO' ? 'none' : 'grid';
+        document.getElementById('lbl-entidad').innerText = modo === 'CLIENTE' ? 'Nombre Cliente:' : 'Nombre Proveedor:';
+        document.getElementById('txt-btn-1').innerText = modo === 'CLIENTE' ? 'Entregar Lleno' : 'Recibir Lleno';
+        document.getElementById('txt-btn-2').innerText = modo === 'CLIENTE' ? 'Recibir Vacío' : 'Entregar Vacío';
+    }
+
+    function autocompletar(origen) {
+        const inputNombre = document.getElementById('nombre-ent'); const inputRut = document.getElementById('rut-ent');
+        const cajaSugerencias = document.getElementById('sugerencias-clientes');
+        if(!inputNombre || !inputRut || !cajaSugerencias) return;
+        cajaSugerencias.innerHTML = ''; 
+        if (origen === 'nombre') {
+            const nom = inputNombre.value.trim().toLowerCase();
+            if (nom === '') { cajaSugerencias.style.display = 'none'; return; }
+            const filtrados = baseClientes.filter(c => c.nombre.toLowerCase().includes(nom));
+            if (filtrados.length > 0) {
+                filtrados.slice(0, 8).forEach(cli => { 
+                    let div = document.createElement('div'); div.className = 'sugerencia-item';
+                    div.innerHTML = `<strong>${cli.nombre}</strong> <span style="color:#7f8c8d; font-size:0.85em;">- ${cli.rut}</span>`;
+                    div.onclick = function() { inputNombre.value = cli.nombre; inputRut.value = cli.rut; cajaSugerencias.style.display = 'none'; };
+                    cajaSugerencias.appendChild(div);
+                });
+                cajaSugerencias.style.display = 'block';
+            } else { cajaSugerencias.style.display = 'none'; }
+        } else if (origen === 'rut') {
+            const rut = inputRut.value.trim();
+            if (rut !== '') {
+                let cli = baseClientes.find(c => c.rut.includes(rut));
+                if(cli) inputNombre.value = cli.nombre;
+            }
+        }
+    }
+    document.addEventListener('click', function(e) { if(e.target.id !== 'nombre-ent') { const caja = document.getElementById('sugerencias-clientes'); if(caja) caja.style.display = 'none'; } });
+
+    function autocompletarCilindro() {
+        const serie = document.getElementById('serie').value.trim().toUpperCase();
+        let est = estadoCilindros[serie];
+        if (est) { 
+            document.getElementById('gas').value = est.gas; 
+            document.getElementById('m3').value = est.m3; 
+            document.getElementById('ph').value = est.ph || "";
+        } else {
+            document.getElementById('gas').selectedIndex = 0;
+            document.getElementById('m3').selectedIndex = 0;
+            document.getElementById('ph').value = "";
+        }
+    }
+
+    function agregarALista(tipo) {
+        const serieInput = document.getElementById('serie');
+        const gasSelect = document.getElementById('gas');
+        const m3Select = document.getElementById('m3');
+        const phInput = document.getElementById('ph'); 
+        
+        const serie = serieInput.value.trim().toUpperCase();
+        const gas = gasSelect.value;
+        const m3 = m3Select.value;
+        const ph = phInput.value; 
+        let entidad = "Stock Inicial", rut = "N/A";
+
+        if(!gas || !m3) { alert("⚠️ ERROR: Debe seleccionar el Tipo de Gas y la Capacidad."); return; }
+
+        if (modoActual !== 'INVENTARIO') {
+            entidad = document.getElementById('nombre-ent').value.trim();
+            rut = document.getElementById('rut-ent').value.trim();
+            if(!rut) rut = "Sin Registro";
+            if(!serie || !entidad) { alert("⚠️ ATENCIÓN: Faltan datos (Cliente o Serie)."); return; }
+        } else { 
+            if(!serie) { alert("⚠️ ATENCIÓN: Escanee el N° de Serie."); return; } 
+        }
+
+        if (operacionActual.find(o => o.serie === serie)) { alert(`⚠️ La serie ${serie} ya está en la lista actual.`); return; }
+        
+        let estadoActual = estadoCilindros[serie];
+        if (estadoActual) {
+            if (modoActual === 'INVENTARIO' && estadoActual.ubicacion === 'Local') {
+                alert(`❌ ERROR: El cilindro ${serie} ya existe en bodega.`); return;
+            }
+            if (modoActual === 'CLIENTE' && tipo === 'ENTREGA') {
+                if (estadoActual.ubicacion !== 'Local' || estadoActual.estadoFisico !== 'Lleno') {
+                    alert(`❌ ERROR: El cilindro ${serie} no está disponible en bodega como LLENO para entregar al cliente.`); return;
+                }
+            }
+            if (modoActual === 'CLIENTE' && tipo === 'RECEPCION') {
+                if (estadoActual.ubicacion !== 'En Cliente') {
+                    alert(`❌ ERROR: El cilindro ${serie} no se encuentra actualmente en poder del cliente.`); return;
+                }
+            }
+            if (modoActual === 'PROVEEDOR' && tipo === 'ENTREGA') {
+                if (estadoActual.ubicacion === 'Local') {
+                    alert(`❌ ERROR: El cilindro ${serie} ya está en bodega. No puedes recibirlo del proveedor.`); return;
+                }
+            }
+            if (modoActual === 'PROVEEDOR' && tipo === 'RECEPCION') {
+                if (estadoActual.ubicacion !== 'Local') {
+                    alert(`❌ ERROR: El cilindro ${serie} no está en tu bodega para ser enviado.`); return;
+                }
+            }
+        }
+
+        let motivoAdicional = "";
+        if (tipo === 'RECHAZO') {
+            motivoAdicional = prompt("⚠️ Escriba el MOTIVO DEL RECHAZO:");
+            if (motivoAdicional === null) return;
+            if (motivoAdicional.trim() === "") motivoAdicional = "Sin especificar";
+        }
+
+        let descripcionMov = "", ubicacionFutura = "", estadoFuturo = "";
+        
+        if (modoActual === 'INVENTARIO') {
+            ubicacionFutura = "Local";
+            if(tipo === 'ENTREGA') { descripcionMov = "Carga Inicial (Lleno)"; estadoFuturo = "Lleno"; }
+            else if(tipo === 'RECEPCION') { descripcionMov = "Carga Inicial (Vacío)"; estadoFuturo = "Vacío"; }
+            else if(tipo === 'RECHAZO') { descripcionMov = "Carga Inicial (Rechazado) - Motivo: " + motivoAdicional; estadoFuturo = "Rechazado"; }
+        } else {
+            if(tipo === 'RECHAZO') { descripcionMov = "Rechazado - Motivo: " + motivoAdicional; ubicacionFutura = "Local"; estadoFuturo = "Rechazado"; }
+            else if(modoActual === 'CLIENTE') {
+                if(tipo === 'ENTREGA') { descripcionMov = "Entrega a Cliente"; ubicacionFutura = "En Cliente"; estadoFuturo = "Lleno"; }
+                else { descripcionMov = "Recepción de Cliente"; ubicacionFutura = "Local"; estadoFuturo = "Vacío"; }
+            } else if (modoActual === 'PROVEEDOR') {
+                if(tipo === 'ENTREGA') { descripcionMov = "Recepción de Planta"; ubicacionFutura = "Local"; estadoFuturo = "Lleno"; }
+                else { descripcionMov = "Envío a Planta"; ubicacionFutura = "En Proveedor"; estadoFuturo = "Vacío"; }
+            }
+        }
+        
+        // --- GUARDADO DE MATEMATICA FINANCIERA EN MEMORIA PARA ENVIARLA A GOOGLE SHEETS ---
+        let match = String(m3).match(/^[\d.]+/);
+        let cantidadNumerica = match ? parseFloat(match[0]) : 0;
+        if (cantidadNumerica === 0 && m3) cantidadNumerica = parseFloat(m3) || 0;
+
+        let costoMemoriaCilindro = estadoActual ? (estadoActual.costoAdquisicion || 0) : 0;
+        let costoParaInyectarAlCilindro = 0;
+        let costoHistorial = 0;
+        let ventaHistorial = 0;
+
+        if (modoActual === 'PROVEEDOR' && tipo === 'ENTREGA') {
+            let nomProv = entidad.toUpperCase();
+            let tarifaProv = (tarifasProveedores[nomProv] && tarifasProveedores[nomProv][gas]) ? tarifasProveedores[nomProv][gas] : 0;
+            costoParaInyectarAlCilindro = tarifaProv * cantidadNumerica;
+        } else {
+            costoParaInyectarAlCilindro = costoMemoriaCilindro;
+        }
+
+        if (modoActual === 'CLIENTE' && tipo === 'ENTREGA') {
+            costoHistorial = costoMemoriaCilindro;
+            let tarifaVenta = (tarifasGasesBase[gas]) ? tarifasGasesBase[gas].venta : 0;
+            let clienteRegistrado = baseClientes.find(c => c.rut === rut);
+            if (clienteRegistrado && clienteRegistrado.preciosEspeciales && clienteRegistrado.preciosEspeciales[gas] !== undefined) {
+                tarifaVenta = clienteRegistrado.preciosEspeciales[gas];
+            }
+            ventaHistorial = tarifaVenta * cantidadNumerica;
+        }
+
+        let ts = Date.now();
+        operacionActual.push({ serie, gas, m3, ph, entidad, rut, tipoMov: tipo, descripcionMov, ubicacionFutura, estadoFuturo, modo: modoActual, costoHistorico: costoHistorial, ventaHistorica: ventaHistorial, costoParaInyectarAlCilindro: costoParaInyectarAlCilindro, ts: ts });
+        
+        serieInput.value = ''; gasSelect.selectedIndex = 0; m3Select.selectedIndex = 0; phInput.value = '';
+        actualizarTablaTemporal(); serieInput.focus();
+    }
+
+    function actualizarTablaTemporal() {
+        const tbody = document.getElementById('lista-temporal'); tbody.innerHTML = '';
+        operacionActual.forEach((item, index) => {
+            let phVisual = item.ph ? ` <span style="font-size:0.8em; color:#7f8c8d;">(PH: ${item.ph})</span>` : '';
+            tbody.innerHTML += `<tr><td><strong>${item.serie}</strong></td><td>${item.gas}${phVisual}</td><td>${item.descripcionMov}</td>
+            <td><button onclick="operacionActual.splice(${index}, 1); actualizarTablaTemporal();" style="color:white; background:#e74c3c; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;">X</button></td></tr>`;
+        });
+        let mostrar = operacionActual.length > 0;
+        document.getElementById('tabla-temporal-container').style.display = mostrar ? 'table' : 'none';
+        document.getElementById('btn-finalizar').style.display = mostrar ? 'block' : 'none';
+    }
+
+    // --- GUARDADO MASIVO HACIA GOOGLE SHEETS ---
+    async function finalizarOperacion() {
+        if(operacionActual.length === 0) return;
+        if(!nubeLista) { alert("Espere a que el sistema se conecte a Google Sheets."); return; }
+        
+        const btnF = document.getElementById('btn-finalizar'); const txtOriginal = btnF.innerHTML;
+        btnF.disabled = true; btnF.innerHTML = '<i class="fas fa-spinner fa-spin"></i> GUARDANDO EN SHEETS...';
+        
+        try {
+            const entidad = operacionActual[0].entidad;
+            const rut = operacionActual[0].rut;
+            const modoOp = operacionActual[0].modo;
+            const fecha = new Date().toLocaleString();
+            
+            // Paquete de datos que enviaremos a la nube
+            const payload = {
+                fecha: fecha,
+                entidad: entidad,
+                rut: rut,
+                modoOp: modoOp,
+                operacionActual: operacionActual
+            };
+
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'accion=guardarOperacion&datos=' + encodeURIComponent(JSON.stringify(payload))
+            });
+            
+            const resultado = await response.json();
+            
+            if (resultado.exito) {
+                let nFolio = resultado.folio;
+
+                // Actualizar arrays locales para no tener que recargar toda la página
+                if(modoOp !== 'INVENTARIO' && entidad && rut !== "Sin Registro" && rut !== "N/A" && !baseClientes.find(c => c.rut === rut)) {
+                    baseClientes.push({ nombre: entidad, rut: rut });
+                }
+
+                operacionActual.forEach(item => {
+                    let phFinal = item.ph || (estadoCilindros[item.serie] ? estadoCilindros[item.serie].ph : "");
+                    
+                    const est = { 
+                        gas: item.gas, m3: item.m3, ph: phFinal || "", 
+                        ubicacion: item.ubicacionFutura, estadoFisico: item.estadoFuturo, 
+                        entidadActual: item.ubicacionFutura === 'Local' ? 'Bodega Local' : entidad, 
+                        ultimoMov: item.descripcionMov, fecha: fecha, folio: nFolio, costoAdquisicion: item.costoParaInyectarAlCilindro 
+                    };
+                    
+                    estadoCilindros[item.serie] = est; 
+                    historialGlobal.unshift({ ...item, folio: nFolio, fecha: fecha, entidad: entidad }); 
+                });
+
+                if (modoOp !== 'INVENTARIO') { generarPDFCompleto(entidad, rut, nFolio, fecha); alert(`Vale N°: #${nFolio}`); } 
+                else { alert("Stock Inicial guardado en Google Sheets."); }
+                
+                operacionActual = []; 
+                actualizarTablaTemporal(); 
+                actualizarDashboard();
+                
+                document.getElementById('nombre-ent').value = ''; 
+                document.getElementById('rut-ent').value = '';
+                document.getElementById('gas').selectedIndex = 0;
+                document.getElementById('m3').selectedIndex = 0;
+                document.getElementById('ph').value = '';
+                document.getElementById('serie').value = '';
+            } else {
+                throw new Error(resultado.mensaje || "Error desconocido en el servidor");
+            }
+
+        } catch (error) { 
+            console.error(error); 
+            alert("Error al intentar guardar en Google Sheets."); 
+        } 
+        finally { btnF.disabled = false; btnF.innerHTML = txtOriginal; }
+    }
+
+    function generarPDFCompleto(entidad, rut, folio, fecha) {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF();
+        doc.setFontSize(20); doc.text("SETECSI S.A.", 105, 20, null, null, "center");
+        doc.setFontSize(10); doc.text("Comprobante de Movimientos de Gases", 105, 26, null, null, "center");
+        doc.setFontSize(12); doc.setTextColor(200, 0, 0); doc.text(`VALE N°: ${folio}`, 160, 35);
+        doc.setFontSize(11); doc.setTextColor(0); doc.text(`Entidad: ${entidad.toUpperCase()}`, 20, 45); doc.text(`RUT: ${rut}`, 20, 52); doc.text(`Fecha: ${fecha}`, 20, 59);
+        const rows = operacionActual.map(i => [i.serie, `${i.gas} (${i.m3})`, i.descripcionMov]);
+        doc.autoTable({ startY: 65, head: [['N° Serie', 'Gas / Capacidad', 'Movimiento']], body: rows, theme: 'grid', headStyles: { fillColor: [44, 62, 80] } });
+        doc.text("Firma Recibí Conforme: _________________________", 20, doc.lastAutoTable.finalY + 30); doc.save(`Vale_SETECSI_${folio}.pdf`);
+    }
+
+    function actualizarDashboard() {
+        gases.forEach(g => { inventario.llenos[g] = 0; inventario.vacios[g] = 0; inventario.rechazos[g] = 0; });
+        for (let s in estadoCilindros) {
+            let cil = estadoCilindros[s];
+            if (cil.ubicacion === 'Local') {
+                if (cil.estadoFisico === 'Lleno') inventario.llenos[cil.gas]++;
+                else if (cil.estadoFisico === 'Vacío') inventario.vacios[cil.gas]++;
+                else if (cil.estadoFisico === 'Rechazado') inventario.rechazos[cil.gas]++;
+            }
+        }
+        const render = (id, data, title, estadoFisico) => {
+            let h = `<div style="grid-column: 1 / span 2; font-weight:bold; margin-bottom:5px; border-bottom:1px solid #eee; padding-bottom:5px;">${title}</div>`;
+            gases.forEach(g => {
+                if (data[g] > 0) { h += `<div class="gas-item"><span class="gas-link" onclick="verDetalleBodega('${estadoFisico}', '${g}')">${g}:</span> <strong>${data[g]}</strong></div>`; } 
+                else { h += `<div class="gas-item"><span style="color:#7f8c8d;">${g}:</span> <strong>${data[g]}</strong></div>`; }
+            });
+            document.getElementById(id).innerHTML = h;
+        };
+        render('grid-llenos', inventario.llenos, "LLENOS LOCAL", "Lleno"); render('grid-vacios', inventario.vacios, "VACÍOS LOCAL", "Vacío"); render('grid-rechazos', inventario.rechazos, "RECHAZADOS", "Rechazado");
+    }
+
+    function verDetalleBodega(estado, gas) {
+        let div = document.getElementById('detalle-dashboard'); 
+        let html = `<h3 style="margin-top:0; color:var(--primary);"><i class="fas fa-boxes"></i> Detalle: ${gas} (${estado} en Local)</h3>`;
+        html += '<table class="data-table"><thead><tr><th>N° Vale</th><th>Serie</th><th>Metraje</th><th>Último Movimiento</th><th>Fecha</th></tr></thead><tbody>';
+        let found = false;
+        for (let s in estadoCilindros) {
+            let cil = estadoCilindros[s];
+            if (cil.ubicacion === 'Local' && cil.estadoFisico === estado && cil.gas === gas) { 
+                found = true; html += `<tr><td>#${cil.folio}</td><td><strong>${s}</strong></td><td>${cil.m3}</td><td>${cil.ultimoMov}</td><td>${cil.fecha}</td></tr>`; 
+            }
+        }
+        html += '</tbody></table>';
+        if (found) { div.innerHTML = html; div.style.display = 'block'; div.scrollIntoView({ behavior: 'smooth' }); }
+    }
+
+    function calcularAlertasPH() {
+        const tbodyAlertas = document.getElementById('lista-alertas-ph');
+        const tbodyTodo = document.getElementById('lista-todo-ph');
+        const filtro = document.getElementById('filtro-ph') ? document.getElementById('filtro-ph').value.toLowerCase().trim() : '';
+        
+        if(!tbodyAlertas || !tbodyTodo) return;
+        tbodyAlertas.innerHTML = ''; tbodyTodo.innerHTML = '';
+        
+        let currentDate = new Date();
+        let anioActual = currentDate.getFullYear();
+        let mesActual = currentDate.getMonth() + 1;
+
+        let hayAlertas = false;
+
+        for (let s in estadoCilindros) {
+            let cil = estadoCilindros[s];
+            if (!cil.ph) continue;
+
+            if (s.toLowerCase().includes(filtro) || cil.gas.toLowerCase().includes(filtro)) {
+                tbodyTodo.innerHTML += `<tr><td><strong>${s}</strong></td><td>${cil.gas}</td><td>${cil.ph}</td><td>${cil.ubicacion}</td></tr>`;
+            }
+
+            let partes = cil.ph.split('-'); 
+            if (partes.length === 2) {
+                let anioPH = parseInt(partes[0]);
+                let mesPH = parseInt(partes[1]);
+                let mesesDiferencia = (anioActual - anioPH) * 12 + (mesActual - mesPH);
+                let alertaEstado = "";
+                let claseCSS = "";
+
+                if (mesesDiferencia >= 120) { alertaEstado = "CRÍTICO: Vencido (10 Años)"; claseCSS = "alerta-ph-10"; } 
+                else if (mesesDiferencia === 119) { alertaEstado = "ALERTA: Vence en 1 Mes (10 Años)"; claseCSS = "alerta-ph-10"; } 
+                else if (mesesDiferencia >= 60 && mesesDiferencia < 119) { alertaEstado = "ADVERTENCIA: Vencido (5 Años)"; claseCSS = "alerta-ph-5"; } 
+                else if (mesesDiferencia === 59) { alertaEstado = "ALERTA: Vence en 1 Mes (5 Años)"; claseCSS = "alerta-ph-5"; }
+
+                if (alertaEstado !== "") {
+                    hayAlertas = true;
+                    tbodyAlertas.innerHTML += `<tr>
+                        <td><strong>${s}</strong></td><td>${cil.gas}</td><td>${cil.ph}</td>
+                        <td><span class="${claseCSS}">${alertaEstado}</span></td><td>${cil.ubicacion}</td>
+                    </tr>`;
+                }
+            }
+        }
+        if (!hayAlertas) { tbodyAlertas.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--success); font-weight:bold;">✅ Ningún cilindro en zona de riesgo o vencimiento.</td></tr>'; }
+    }
+
+    function configurarBuscador() {
+        const tipo = document.getElementById('tipo-busqueda').value; 
+        let html = '';
+        if(tipo === 'gas') { 
+            html = `<label>Seleccionar Gas:</label><select id="input-busqueda" onchange="ejecutarBusqueda()"><option value="">Seleccione...</option><option>Argón</option><option>Mezcla</option><option>Nitrógeno</option><option>Oxígeno</option><option>CO2</option><option>Acetileno</option></select>`; 
+        } else { 
+            let placeholder = tipo === 'serie' ? 'Ej: A-123' : (tipo === 'cliente' ? 'Ej: Juan o 11.111' : 'Ej: 0001'); 
+            html = `<label>Ingresar Término:</label><input type="text" id="input-busqueda" placeholder="${placeholder}" onkeyup="ejecutarBusqueda()">`; 
+        }
+        document.getElementById('div-input-busqueda').innerHTML = html; 
+        document.getElementById('resultados-busqueda').innerHTML = '';
+
+        if (tipo === 'folio') { ejecutarBusqueda(); }
+    }
+
+    function ejecutarBusqueda() {
+        const input = document.getElementById('input-busqueda'); 
+        if(!input) return;
+        const tipo = document.getElementById('tipo-busqueda').value; 
+        const term = input.value.trim().toLowerCase();
+        const div = document.getElementById('resultados-busqueda'); 
+        
+        if(term === '' && tipo !== 'folio') { div.innerHTML = ''; return; }
+        
+        let h = '';
+        const th = (n, text) => `<th onclick="ordenarTabla(${n})" data-dir="asc" style="cursor:pointer; user-select:none; white-space:nowrap;" title="Clic para ordenar">${text} <span class="sort-icon" style="font-size:0.8em; opacity:0.8;">↕️</span></th>`;
+        
+        if(tipo === 'gas') {
+            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'N° Vale')}${th(1,'Serie')}${th(2,'Movimiento')}${th(3,'Fecha')}${th(4,'Ubicación')}</tr></thead><tbody>`;
+            let hayDatos = false;
+            for(let s in estadoCilindros) { 
+                let cil = estadoCilindros[s]; 
+                if(cil.gas.toLowerCase() === term) { 
+                    hayDatos = true; h += `<tr><td>#${cil.folio}</td><td><strong>${s}</strong></td><td>${cil.ultimoMov}</td><td>${cil.fecha}</td><td>${cil.entidadActual}</td></tr>`; 
+                } 
+            }
+            if(!hayDatos) return div.innerHTML = '<p>No hay series registradas.</p>'; h += '</tbody></table>';
+        }
+        else if(tipo === 'serie') {
+            let exactas = historialGlobal.filter(x => x.serie.toLowerCase() === term);
+            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Fecha')}${th(1,'Vale')}${th(2,'Movimiento')}${th(3,'Entidad')}</tr></thead><tbody>`;
+            if(exactas.length === 0) h += `<tr><td colspan="4">Sin registros históricos para esta serie.</td></tr>`; 
+            else exactas.forEach(f => h += `<tr><td>${f.fecha}</td><td>#${f.folio}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td></tr>`); h += '</tbody></table>';
+        }
+        else if(tipo === 'cliente') {
+            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Vale')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}</tr></thead><tbody>`;
+            let filtrados = historialGlobal.filter(x => x.entidad.toLowerCase().includes(term) || (x.rut && x.rut.includes(term)));
+            if(filtrados.length === 0) return div.innerHTML = '<p>Sin registros para este cliente.</p>';
+            filtrados.forEach(f => h += `<tr><td>#${f.folio}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td></tr>`); h += '</tbody></table>';
+        }
+        else if(tipo === 'folio') {
+            if (term === '') {
+                let foliosUnicos = [];
+                let foliosSet = new Set();
+                
+                historialGlobal.forEach(x => {
+                    if (x.folio !== 'ADMIN' && !foliosSet.has(x.folio)) {
+                        foliosSet.add(x.folio);
+                        foliosUnicos.push({ folio: x.folio, fecha: x.fecha, entidad: x.entidad });
+                    }
+                });
+                
+                if (foliosUnicos.length === 0) { div.innerHTML = '<p>No hay Vales registrados en el sistema.</p>'; return; }
+                
+                h += `<h3 style="color: var(--primary); margin-top: 0;"><i class="fas fa-list"></i> Registro Histórico de Vales</h3>`;
+                h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'N° Vale')}${th(1,'Fecha')}${th(2,'Entidad Asociada')}</tr></thead><tbody>`;
+                
+                foliosUnicos.forEach(f => {
+                    h += `<tr style="cursor:pointer;" onmouseover="this.style.background='#f1f2f6'" onmouseout="this.style.background='transparent'" onclick="document.getElementById('input-busqueda').value='${f.folio}'; ejecutarBusqueda();">
+                            <td style="color: var(--info);"><strong>#${f.folio}</strong></td>
+                            <td>${f.fecha}</td>
+                            <td>${f.entidad}</td>
+                          </tr>`;
+                });
+                h += '</tbody></table>';
+                
+            } else {
+                let numLimpio = term.replace('#', ''); 
+                let filtrados = historialGlobal.filter(x => x.folio.includes(numLimpio));
+                
+                if(filtrados.length === 0) return div.innerHTML = '<p>No se encontró el Vale.</p>';
+                
+                h += `<div style="background: #e8f8f5; padding: 15px; border-radius: 8px; margin-bottom: 15px; color: var(--success); border: 1px solid #a3e4d7;">
+                        <strong style="font-size: 1.1rem;"><i class="fas fa-file-invoice"></i> Resumen Vale #${numLimpio}:</strong> Se encontraron <strong>${filtrados.length}</strong> cilindros.
+                      </div>`;
+                      
+                h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'N°')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}${th(4,'Entidad')}</tr></thead><tbody>`;
+                filtrados.forEach((f, index) => { 
+                    h += `<tr><td>${index + 1}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td></tr>`; 
+                }); 
+                h += '</tbody></table>';
+            }
+        }
+        div.innerHTML = h;
+    }
+
+    function ordenarTabla(n) {
+        const table = document.getElementById("tabla-resultados"); if (!table) return;
+        const tbody = table.querySelector("tbody"); if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        if (rows.length === 0 || rows[0].cells.length === 1) return; 
+        
+        const ths = table.querySelectorAll("th"); const th = ths[n];
+        let dir = th.getAttribute("data-dir"); let newDir = dir === "asc" ? "desc" : "asc";
+        
+        ths.forEach(t => { t.setAttribute("data-dir", "asc"); let icon = t.querySelector('.sort-icon'); if(icon) icon.innerText = '↕️'; });
+        th.setAttribute("data-dir", newDir); let currentIcon = th.querySelector('.sort-icon'); if(currentIcon) currentIcon.innerText = newDir === 'asc' ? ' 🔼' : ' 🔽';
+        
+        rows.sort((a, b) => {
+            let tdA = a.querySelectorAll("td")[n]; let tdB = b.querySelectorAll("td")[n];
+            if(!tdA || !tdB) return 0;
+            let vA = tdA.innerText.trim(); let vB = tdB.innerText.trim();
+            
+            let isNumA = /^#?\d+(\.\d+)?$/.test(vA); let isNumB = /^#?\d+(\.\d+)?$/.test(vB);
+            if (isNumA && isNumB) {
+                let nA = parseFloat(vA.replace(/[^\d.-]/g, '')); let nB = parseFloat(vB.replace(/[^\d.-]/g, ''));
+                return newDir === 'asc' ? nA - nB : nB - nA;
+            }
+            return newDir === 'asc' ? vA.localeCompare(vB, undefined, {numeric: true}) : vB.localeCompare(vA, undefined, {numeric: true});
+        });
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function abrirPanelAdmin() {
+        const clave = prompt("Clave:");
+        if (clave === "admin123") { cambiarModulo('mod-admin', null); }
+    }
+
+    function cargarModuloFinanzas() {
+        const tbody = document.getElementById('lista-finanzas-cuerpo');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const tablaFinanzas = document.getElementById('tabla-finanzas-registro');
+        if (tablaFinanzas) {
+            tablaFinanzas.style.width = '100%';
+            tablaFinanzas.style.minWidth = '750px';
+            tablaFinanzas.style.borderCollapse = 'collapse';
+        }
+
+        const inputMes = document.getElementById('filtro-mes-finanzas');
+        if (inputMes && inputMes.getAttribute("data-init") !== "true") {
+            let hoy = new Date();
+            let mes = ("0" + (hoy.getMonth() + 1)).slice(-2);
+            inputMes.value = `${hoy.getFullYear()}-${mes}`;
+            inputMes.setAttribute("data-init", "true");
+        }
+
+        let acumuladorVentas = 0;
+        let acumuladorCostos = 0;
+        
+        let contadoresVentasGas = {};
+        let contadoresComprasGas = {};
+        gases.forEach(g => {
+            contadoresVentasGas[g] = 0;
+            contadoresComprasGas[g] = 0;
+        });
+
+        const mesFiltro = inputMes ? inputMes.value : '';
+        let startTs = 0;
+        let endTs = Infinity;
+
+        if (mesFiltro) {
+            let partes = mesFiltro.split('-');
+            let anio = parseInt(partes[0]);
+            let mes = parseInt(partes[1]) - 1; 
+            startTs = new Date(anio, mes, 1).getTime();
+            endTs = new Date(anio, mes + 1, 1).getTime();
+        }
+
+        historialGlobal.forEach(mov => {
+            if (mov.ts >= startTs && mov.ts < endTs) {
+                
+                if (mov.modo === 'PROVEEDOR' && mov.tipoMov === 'ENTREGA' && mov.estadoFuturo === 'Lleno') {
+                    contadoresComprasGas[mov.gas]++;
+                }
+
+                if (mov.modo === 'CLIENTE' && mov.tipoMov === 'ENTREGA' && mov.estadoFuturo === 'Lleno') {
+                    contadoresVentasGas[mov.gas]++;
+                    
+                    let capacidadRealText = mov.m3 || (mov.kg ? mov.kg + 'kg' : '');
+                    if (estadoCilindros[mov.serie]) {
+                        let capMaestra = estadoCilindros[mov.serie].m3 || estadoCilindros[mov.serie].kg || '';
+                        if (mov.gas === 'CO2' || !capacidadRealText || capacidadRealText === '0' || capacidadRealText === '0m3') {
+                            capacidadRealText = capMaestra;
+                        }
+                    }
+
+                    let match = String(capacidadRealText).match(/^[\d.]+/);
+                    let cantidadNumerica = match ? parseFloat(match[0]) : 0;
+                    
+                    if (cantidadNumerica === 0 || isNaN(cantidadNumerica)) {
+                        cantidadNumerica = (mov.gas === 'CO2') ? 30 : 10;
+                    }
+
+                    if (!String(capacidadRealText).toLowerCase().includes('m') && !String(capacidadRealText).toLowerCase().includes('k')) {
+                        capacidadRealText = cantidadNumerica + (mov.gas === 'CO2' ? 'kg' : 'm3');
+                    }
+
+                    let venta = parseFloat(mov.ventaHistorica) || 0;
+                    let costo = parseFloat(mov.costoHistorico) || 0;
+
+                    let costoUnitarioImplicito = cantidadNumerica > 0 ? (costo / cantidadNumerica) : costo;
+                    let ventaUnitariaImplicita = cantidadNumerica > 0 ? (venta / cantidadNumerica) : venta;
+
+                    let tarifaVentaRef = (tarifasGasesBase[mov.gas]) ? tarifasGasesBase[mov.gas].venta : 0;
+                    let cliente = baseClientes.find(c => c.rut === mov.rut);
+                    if (cliente && cliente.preciosEspeciales && cliente.preciosEspeciales[mov.gas] !== undefined) {
+                        tarifaVentaRef = cliente.preciosEspeciales[mov.gas];
+                    }
+
+                    let provReal = "CRIOGAS";
+                    let movsProv = historialGlobal.filter(h => h.serie === mov.serie && h.modo === 'PROVEEDOR' && h.ts < mov.ts);
+                    if (movsProv.length > 0) {
+                        movsProv.sort((a, b) => b.ts - a.ts);
+                        provReal = movsProv[0].entidad.toUpperCase();
+                    }
+                    let tarifasProv = tarifasProveedores[provReal] || tarifasProveedores["CRIOGAS"];
+                    let costoUnitarioRef = (tarifasProv && tarifasProv[mov.gas]) ? tarifasProv[mov.gas] : 0;
+
+                    if (costoUnitarioImplicito > (costoUnitarioRef * 2) || ventaUnitariaImplicita > (tarifaVentaRef * 2)) {
+                        venta = tarifaVentaRef * cantidadNumerica;
+                        costo = costoUnitarioRef * cantidadNumerica;
+                    }
+
+                    acumuladorVentas += venta;
+                    acumuladorCostos += costo; 
+                    let margenNetoLineal = venta - costo;
+
+                    tbody.innerHTML += `<tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; white-space: nowrap;">${mov.fecha.split(' ')[0]}</td>
+                        <td style="padding: 10px; color:var(--info); white-space: nowrap;"><strong>#${mov.folio}</strong></td>
+                        <td style="padding: 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${mov.entidad}">${mov.entidad}</td>
+                        <td style="padding: 10px; white-space: nowrap;"><strong>${mov.serie}</strong> - ${mov.gas} (${capacidadRealText})</td>
+                        <td style="padding: 10px; color:var(--danger); font-weight:bold; text-align: right; white-space: nowrap;">$${costo.toLocaleString('es-CL')}</td>
+                        <td style="padding: 10px; color:var(--success); font-weight:bold; text-align: right; white-space: nowrap;">$${venta > 0 ? venta.toLocaleString('es-CL') : '-'}</td>
+                        <td style="padding: 10px; font-weight:bold; text-align: right; white-space: nowrap; color: ${margenNetoLineal >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                            $${margenNetoLineal.toLocaleString('es-CL')}
+                        </td>
+                    </tr>`;
+                }
+            }
+        });
+
+        let utilidadFinalCalculada = acumuladorVentas - acumuladorCostos;
+
+        document.getElementById('fin-total-ventas').innerText = `$${acumuladorVentas.toLocaleString('es-CL')}`;
+        document.getElementById('fin-total-costos').innerText = `$${acumuladorCostos.toLocaleString('es-CL')}`;
+        document.getElementById('fin-total-utilidad').innerText = `$${utilidadFinalCalculada.toLocaleString('es-CL')}`;
+
+        let htmlVentas = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">';
+        let htmlCostos = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">';
+        
+        gases.forEach(g => {
+            htmlVentas += `<div style="background:#f9f9f9; padding:2px 6px; border-radius:3px; border:1px solid #e1e1e1;">${g}: <strong style="color:var(--info);">${contadoresVentasGas[g]}</strong></div>`;
+            htmlCostos += `<div style="background:#f9f9f9; padding:2px 6px; border-radius:3px; border:1px solid #e1e1e1;">${g}: <strong style="color:var(--danger);">${contadoresComprasGas[g]}</strong></div>`;
+        });
+        
+        htmlVentas += '</div>';
+        htmlCostos += '</div>';
+
+        const elemVentas = document.getElementById('detalle-ventas-gas');
+        const elemCostos = document.getElementById('detalle-costos-gas');
+        
+        if(elemVentas) elemVentas.innerHTML = htmlVentas;
+        if(elemCostos) elemCostos.innerHTML = htmlCostos;
+
+        if (acumuladorVentas === 0 && acumuladorCostos === 0) {
+            let mensajeVacio = mesFiltro ? `📋 No hay transacciones de venta registradas para el mes seleccionado.` : `📋 No existen transacciones en todo el registro histórico.`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#7f8c8d;">${mensajeVacio}</td></tr>`;
+        }
+
+        if (typeof generarBalanceFinancieroDetallado === "function") {
+            generarBalanceFinancieroDetallado();
+        }
+    }
+    
+    function generarBalanceFinancieroDetallado() {
+        const contenedor = document.getElementById('contenedor-balance-financiero');
+        if (!contenedor) return;
+
+        let proveedorPorSerie = {};
+        historialGlobal.forEach(h => {
+            if (h.modo === 'PROVEEDOR' && h.tipoMov === 'ENTREGA') {
+                if (!proveedorPorSerie[h.serie] || h.ts > (proveedorPorSerie[h.serie].ts || 0)) {
+                    proveedorPorSerie[h.serie] = { prov: h.entidad.toUpperCase(), ts: h.ts };
+                }
+            }
+        });
+
+        let resumen = {};
+
+        Object.keys(estadoCilindros).forEach(serie => {
+            const c = estadoCilindros[serie];
+            if ((String(c.ubicacion).toUpperCase().includes('LOCAL')) && String(c.estadoFisico).toUpperCase() === 'LLENO') {
+                
+                let match = String(c.m3).match(/^[\d.]+/);
+                let cantidadNumerica = match ? parseFloat(match[0]) : 0;
+                if (cantidadNumerica === 0 && c.m3) cantidadNumerica = parseFloat(c.m3) || 0;
+                if (cantidadNumerica === 0 && c.gas === 'CO2') cantidadNumerica = 30;
+
+                let proveedor = proveedorPorSerie[serie] ? proveedorPorSerie[serie].prov : "CRIOGAS";
+                let tarifaUni = (tarifasProveedores[proveedor] && tarifasProveedores[proveedor][c.gas]) ? tarifasProveedores[proveedor][c.gas] : 0;
+                let costoRealTotalCilindro = tarifaUni * cantidadNumerica;
+                
+                const llave = `${c.gas}-${c.m3}-${proveedor}-${costoRealTotalCilindro}`;
+                
+                if (!resumen[llave]) {
+                    resumen[llave] = { 
+                        gas: c.gas, capacidad: c.m3, proveedor: proveedor,
+                        costoPorUnidad: costoRealTotalCilindro, cantidad: 0, costoTotalGrupo: 0 
+                    };
+                }
+                resumen[llave].cantidad += 1;
+                resumen[llave].costoTotalGrupo += costoRealTotalCilindro;
+            }
+        });
+
+        let html = `
+            <div style="overflow-x: auto; width: 100%; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <table style="width: 100%; min-width: 600px; border-collapse: collapse; margin-top: 0; font-family: Arial, sans-serif; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: #343a40; color: white; text-align: left;">
+                            <th style="padding: 12px 10px; border: 1px solid #454d55;">Gas</th>
+                            <th style="padding: 12px 10px; border: 1px solid #454d55;">Cap.</th>
+                            <th style="padding: 12px 10px; border: 1px solid #454d55;">Proveedor</th>
+                            <th style="padding: 12px 10px; border: 1px solid #454d55; text-align: center;">Cant.</th>
+                            <th style="padding: 12px 10px; border: 1px solid #454d55; text-align: right;">Costo c/u</th>
+                            <th style="padding: 12px 10px; border: 1px solid #454d55; text-align: right;">Total Grupo</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        let granTotal = 0;
+        const llavesOrdenadas = Object.keys(resumen).sort();
+
+        llavesOrdenadas.forEach(llave => {
+            const item = resumen[llave];
+            granTotal += item.costoTotalGrupo;
+            const costoUniF = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(item.costoPorUnidad);
+            const costoTotF = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(item.costoTotalGrupo);
+            
+            html += `
+                <tr style="border-bottom: 1px solid #dee2e6; background: #ffffff; transition: background 0.2s;">
+                    <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: bold;">${item.gas}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; white-space: nowrap;">${item.capacidad}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; color: var(--info); font-weight: bold; font-size: 0.85rem; text-transform: uppercase;">${item.proveedor}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: bold; color: #007bff;">${item.cantidad}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; color: #6c757d; white-space: nowrap;">${costoUniF}</td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #212529; white-space: nowrap;">${costoTotF}</td>
+                </tr>`;
+        });
+
+        const granTotalF = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(granTotal);
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #e9ecef; font-weight: bold; font-size: 1.1rem;">
+                            <td colspan="5" style="padding: 15px 10px; text-align: right; border: 1px solid #dee2e6;">GRAN TOTAL INVERSIÓN:</td>
+                            <td style="padding: 15px 10px; text-align: right; border: 1px solid #dee2e6; color: var(--success); white-space: nowrap;">${granTotalF}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`;
+        contenedor.innerHTML = html;
+    }
+
+    function toggleDetalleGases(elementId) {
+        const elemento = document.getElementById(elementId);
+        if (elemento) { elemento.style.display = elemento.style.display === 'none' ? 'block' : 'none'; }
+    }
+
+    function imprimirEtiquetaCilindro() {
+        const serieActual = document.getElementById('serie').value.trim().toUpperCase();
+        if (!serieActual) { alert("⚠️ Primero escriba un número de serie en el recuadro para poder imprimir su etiqueta."); return; }
+
+        const printWindow = window.open('', '_blank', 'width=400,height=300');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Etiqueta_${serieActual}</title>
+                <style>
+                    @page { margin: 0 !important; size: 62mm 30mm !important; }
+                    * { box-sizing: border-box; }
+                    html, body { margin: 0 !important; padding: 0 !important; width: 62mm; height: 30mm; overflow: hidden; display: flex; align-items: center; justify-content: center; background: white; }
+                    svg { max-width: 58mm; max-height: 28mm; display: block; }
+                </style>
+            </head>
+            <body>
+                <svg id="codigo-barras-svg"></svg>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"><\/script>
+                <script>
+                    window.onload = function() {
+                        JsBarcode("#codigo-barras-svg", "${serieActual}", { format: "CODE128", width: 2, height: 40, displayValue: true, fontSize: 18, fontOptions: "bold", margin: 0, textMargin: 4 });
+                        setTimeout(function() { window.print(); window.close(); }, 500);
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+</script>
+</body>
+</html>

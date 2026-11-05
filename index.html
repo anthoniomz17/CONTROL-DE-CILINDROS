@@ -1182,62 +1182,7 @@
         `);
         printWindow.document.close();
     }
-    // =====================================================
-// FUNCIONES ADICIONALES: Eliminar Vale, Eliminar Cilindro, Navegación
-// =====================================================
-
-let ultimaPosicionScroll = 0;
-let valeActualAbierto = null;
-
-function guardarPosicionScroll() {
-  ultimaPosicionScroll = window.scrollY || document.documentElement.scrollTop;
-}
-
-function restaurarPosicionScroll() {
-  setTimeout(() => {
-    window.scrollTo(0, ultimaPosicionScroll);
-  }, 50);
-}
-
-function abrirDetalleVale(vale) {
-  guardarPosicionScroll();
-  valeActualAbierto = vale;
-  // === TU CÓDIGO EXISTENTE PARA CARGAR EL DETALLE DEL VALE ===
-  // Aquí va tu lógica actual que muestra el detalle
-}
-
-function volverAListaVale() {
-  valeActualAbierto = null;
-  // === TU CÓDIGO EXISTENTE PARA VOLVER A LA LISTA ===
-  restaurarPosicionScroll();
-}
-
-async function eliminarVale(vale) {
-  if (!confirm(`⚠️ ¿Estás SEGURO de eliminar el Vale N° ${vale}?\n\n• Se eliminará del historial\n• Todos sus cilindros volverán a su estado anterior\n• Esta acción NO se puede deshacer`)) {
-    return;
-  }
-  try {
-    const respuesta = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'accion=eliminarVale&datos=' + encodeURIComponent(JSON.stringify({ vale: vale }))
-    });
-    const resultado = await respuesta.json();
-    if (resultado.exito) {
-      alert(`✅ ${resultado.mensaje}\n${resultado.detalles ? resultado.detalles.join('\n') : ''}`);
-      iniciarSistema();
-    } else {
-      alert("❌ Error: " + resultado.mensaje);
-    }
-  } catch (err) {
-    alert("❌ Error de conexión: " + err.message);
-  }
-}
-
-async function eliminarCilindroDelVale(vale, serie) {
-  if (!confirm(`⚠️ ¿Eliminar la Serie ${serie} del Vale ${vale}?\n\n• Se eliminará solo este cilindro del vale\n• El cilindro regresará a su ubicación anterior\n• Esta acción NO se puede deshacer`)) {
-    return
-
+    
 </script>
 </body>
 </html>

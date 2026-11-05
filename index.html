@@ -365,24 +365,14 @@
                     }
                 });
 
-                // 4. Cargar Historial
-                historialGlobal = data.historial.map(h => ({
-                    folio: String(h.Folio).padStart(4, '0'),
-                    fecha: h.Fecha,
-                    ts: h.Timestamp,
-                    serie: String(h.Serie),
-                    gas: h.Gas,
-                    m3: h.Metraje,
-                    ph: h.PH,
-                    entidad: h.Entidad,
-                    rut: h.RUT,
-                    tipoMov: h['Tipo Mov'],
-                    descripcionMov: h.Descripcion,
-                    ubicacionFutura: h['Ubicacion Futura'],
-                    estadoFuturo: h['Estado Futuro'],
-                    modo: h.Modo,
-                    costoHistorico: h['Costo Historico'],
-                    ventaHistorica: h['Venta Historica']
+                // 4. Cargar Historial (Filtrando anulados)
+                historialGlobal = data.historial.filter(h => h.Modo !== 'ANULADO').map(h => ({
+                    folio: String(h.Folio).padStart(4, '0'), fecha: h.Fecha, ts: h.Timestamp,
+                    serie: String(h.Serie), gas: h.Gas, m3: h.Metraje, ph: h.PH,
+                    entidad: h.Entidad, rut: h.RUT, tipoMov: h['Tipo Mov'],
+                    descripcionMov: h.Descripcion, ubicacionFutura: h['Ubicacion Futura'],
+                    estadoFuturo: h['Estado Futuro'], modo: h.Modo,
+                    costoHistorico: h['Costo Historico'], ventaHistorica: h['Venta Historica']
                 })).filter(h => h.serie && h.serie !== "undefined").sort((a, b) => b.ts - a.ts);
 
                 nubeLista = true;
@@ -511,27 +501,36 @@
         
         let estadoActual = estadoCilindros[serie];
         if (estadoActual) {
+            // Protección contra cambio accidental de gas
+            if (estadoActual.gas && estadoActual.gas !== gas) {
+                if(!confirm(`⚠️ ADVERTENCIA DE GAS:\nEl cilindro ${serie} es de ${estadoActual.gas}.\nIntentas registrarlo como ${gas}.\n¿Confirmar cambio físico?`)) return;
+            }
+
             if (modoActual === 'INVENTARIO' && estadoActual.ubicacion === 'Local') {
                 alert(`❌ ERROR: El cilindro ${serie} ya existe en bodega.`); return;
             }
-            if (modoActual === 'CLIENTE' && tipo === 'ENTREGA') {
-                if (estadoActual.ubicacion !== 'Local' || estadoActual.estadoFisico !== 'Lleno') {
-                    alert(`❌ ERROR: El cilindro ${serie} no está disponible en bodega como LLENO para entregar al cliente.`); return;
+            if (modoActual === 'CLIENTE') {
+                if (tipo === 'ENTREGA') {
+                    if (estadoActual.ubicacion !== 'Local' || estadoActual.estadoFisico !== 'Lleno') {
+                        alert(`❌ ERROR FÍSICO: El cilindro ${serie} NO ESTÁ LLENO EN EL LOCAL.\nEstado actual: [${estadoActual.estadoFisico}] en [${estadoActual.ubicacion}].`); return;
+                    }
+                } else if (tipo === 'RECEPCION') {
+                    if (estadoActual.ubicacion !== 'En Cliente') {
+                        alert(`❌ ERROR FÍSICO: El cilindro ${serie} figura en [${estadoActual.ubicacion}], no está prestado.`); return;
+                    }
+                    if (estadoActual.entidadActual && estadoActual.entidadActual !== entidad && entidad !== 'Bodega Local') {
+                        if(!confirm(`⚠️ ADVERTENCIA DE CRUCE:\nEste cilindro fue entregado a [${estadoActual.entidadActual}].\nLo estás recibiendo de [${entidad}].\n¿Continuar y reasignar?`)) return;
+                    }
                 }
-            }
-            if (modoActual === 'CLIENTE' && tipo === 'RECEPCION') {
-                if (estadoActual.ubicacion !== 'En Cliente') {
-                    alert(`❌ ERROR: El cilindro ${serie} no se encuentra actualmente en poder del cliente.`); return;
-                }
-            }
-            if (modoActual === 'PROVEEDOR' && tipo === 'ENTREGA') {
-                if (estadoActual.ubicacion === 'Local') {
-                    alert(`❌ ERROR: El cilindro ${serie} ya está en bodega. No puedes recibirlo del proveedor.`); return;
-                }
-            }
-            if (modoActual === 'PROVEEDOR' && tipo === 'RECEPCION') {
-                if (estadoActual.ubicacion !== 'Local') {
-                    alert(`❌ ERROR: El cilindro ${serie} no está en tu bodega para ser enviado.`); return;
+            } else if (modoActual === 'PROVEEDOR') {
+                if (tipo === 'ENTREGA') {
+                    if (estadoActual.ubicacion === 'Local') {
+                        alert(`❌ ERROR FÍSICO: El cilindro ${serie} ya figura en el Local.`); return;
+                    }
+                } else if (tipo === 'RECEPCION') {
+                    if (estadoActual.ubicacion !== 'Local' || (estadoActual.estadoFisico !== 'Vacío' && estadoActual.estadoFisico !== 'Rechazado')) {
+                        alert(`❌ ERROR FÍSICO: Solo puedes enviar cilindros VACÍOS o RECHAZADOS que estén en tu LOCAL.`); return;
+                    }
                 }
             }
         }
@@ -819,15 +818,17 @@
         }
         else if(tipo === 'serie') {
             let exactas = historialGlobal.filter(x => x.serie.toLowerCase() === term);
-            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Fecha')}${th(1,'Vale')}${th(2,'Movimiento')}${th(3,'Entidad')}</tr></thead><tbody>`;
-            if(exactas.length === 0) h += `<tr><td colspan="4">Sin registros históricos para esta serie.</td></tr>`; 
-            else exactas.forEach(f => h += `<tr><td>${f.fecha}</td><td>#${f.folio}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td></tr>`); h += '</tbody></table>';
+            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Fecha')}${th(1,'Vale')}${th(2,'Movimiento')}${th(3,'Entidad')}<th>Acción</th></tr></thead><tbody>`;
+            if(exactas.length === 0) h += `<tr><td colspan="5">Sin registros históricos para esta serie.</td></tr>`; 
+            else exactas.forEach(f => h += `<tr><td>${f.fecha}</td><td>#${f.folio}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td><td><button onclick="anularCilindroHistorico(${f.ts}, '${f.serie}', '${f.folio}')" class="btn-peligro">❌ Eliminar</button></td></tr>`); 
+            h += '</tbody></table>';
         }
         else if(tipo === 'cliente') {
-            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Vale')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}</tr></thead><tbody>`;
+            h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Vale')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}<th>Acción</th></tr></thead><tbody>`;
             let filtrados = historialGlobal.filter(x => x.entidad.toLowerCase().includes(term) || (x.rut && x.rut.includes(term)));
             if(filtrados.length === 0) return div.innerHTML = '<p>Sin registros para este cliente.</p>';
-            filtrados.forEach(f => h += `<tr><td>#${f.folio}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td></tr>`); h += '</tbody></table>';
+            filtrados.forEach(f => h += `<tr><td>#${f.folio}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td><td><button onclick="anularCilindroHistorico(${f.ts}, '${f.serie}', '${f.folio}')" class="btn-peligro">❌ Eliminar</button></td></tr>`); 
+            h += '</tbody></table>';
         }
         else if(tipo === 'folio') {
             if (term === '') {
@@ -861,19 +862,21 @@
                 
                 if(filtrados.length === 0) return div.innerHTML = '<p>No se encontró el Vale.</p>';
                 
-                h += `<div style="background: #e8f8f5; padding: 15px; border-radius: 8px; margin-bottom: 15px; color: var(--success); border: 1px solid #a3e4d7;">
-                        <strong style="font-size: 1.1rem;"><i class="fas fa-file-invoice"></i> Resumen Vale #${numLimpio}:</strong> Se encontraron <strong>${filtrados.length}</strong> cilindros.
+                h += `<div style="background: #e8f8f5; padding: 15px; border-radius: 8px; margin-bottom: 15px; color: var(--success); border: 1px solid #a3e4d7; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <div><strong style="font-size: 1.1rem;"><i class="fas fa-file-invoice"></i> Resumen Vale #${numLimpio}:</strong> Se encontraron <strong>${filtrados.length}</strong> cilindros.</div>
+                        <button onclick="anularValeCompleto('${numLimpio}')" style="background:var(--danger); color:white; border:none; padding:8px 12px; border-radius:5px; cursor:pointer; font-weight:bold;">🗑️ Anular Vale Completo</button>
                       </div>`;
                       
-                h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'N°')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}${th(4,'Entidad')}</tr></thead><tbody>`;
+                h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'N°')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}${th(4,'Entidad')}<th>Acción</th></tr></thead><tbody>`;
                 filtrados.forEach((f, index) => { 
-                    h += `<tr><td>${index + 1}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td></tr>`; 
+                    h += `<tr><td>${index + 1}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td><td>${f.entidad}</td><td><button onclick="anularCilindroHistorico(${f.ts}, '${f.serie}', '${f.folio}')" class="btn-peligro">❌ Eliminar</button></td></tr>`; 
                 }); 
                 h += '</tbody></table>';
             }
         }
         div.innerHTML = h;
     }
+
 
     function ordenarTabla(n) {
         const table = document.getElementById("tabla-resultados"); if (!table) return;
@@ -1182,7 +1185,49 @@
         `);
         printWindow.document.close();
     }
-    
+async function anularCilindroHistorico(ts, serie, folio) {
+        if (!confirm(`¿Seguro de ELIMINAR el movimiento del cilindro ${serie} en el Vale #${folio}?\nEl cilindro volverá a su estado anterior.`)) return;
+        ejecutarAnulacion({ tipoAnulacion: 'CILINDRO', ts: ts, serie: serie });
+    }
+
+    async function anularValeCompleto(folio) {
+        if (!confirm(`⚠️ PELIGRO:\n¿Seguro de ANULAR COMPLETAMENTE el Vale #${folio}?\nTodos los cilindros de este vale volverán a su estado anterior.`)) return;
+        ejecutarAnulacion({ tipoAnulacion: 'VALE', folio: folio });
+    }
+
+    async function ejecutarAnulacion(payload) {
+        // Bloqueo de seguridad: Validar que sea el último movimiento físico
+        if (payload.tipoAnulacion === 'CILINDRO') {
+            let movs = historialGlobal.filter(h => h.serie === payload.serie);
+            if (movs.length > 0 && movs[0].ts != payload.ts) {
+                alert("❌ BLOQUEADO: Este no es el último movimiento del cilindro. Debes eliminar primero los movimientos más recientes de esta serie."); return;
+            }
+        } else if (payload.tipoAnulacion === 'VALE') {
+            let cilindrosVale = historialGlobal.filter(h => h.folio === payload.folio);
+            for (let c of cilindrosVale) {
+                let movs = historialGlobal.filter(h => h.serie === c.serie);
+                if (movs.length > 0 && movs[0].ts != c.ts) {
+                    alert(`❌ BLOQUEADO: El cilindro ${c.serie} tuvo movimientos posteriores a este vale. No puedes anular todo el vale masivamente.`); return;
+                }
+            }
+        }
+
+        document.getElementById('nube-status').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Anulando...';
+        try {
+            const urlFinal = SCRIPT_URL + "?accion=anularOperacion&datos=" + encodeURIComponent(JSON.stringify(payload));
+            const response = await fetch(urlFinal);
+            const data = await response.json();
+            if (data.exito) {
+                alert("✅ Anulación completada con éxito. Actualizando sistema...");
+                await iniciarSistema(); // Descarga todo de nuevo limpio
+                document.getElementById('input-busqueda').value = '';
+                document.getElementById('resultados-busqueda').innerHTML = '';
+            } else { throw new Error(data.mensaje); }
+        } catch (err) {
+            alert("❌ Error: " + err.message);
+            document.getElementById('nube-status').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> Error';
+        }
+    }    
 </script>
 </body>
 </html>

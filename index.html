@@ -458,7 +458,7 @@
             if (rut !== '') {
                 // Solo llena el nombre si el RUT coincide EXACTO (sin considerar puntos ni guiones)
                 const cli = baseClientes.find(c => normalizarRUTJS(c.rut) === normalizarRUTJS(rut));
-                if (cli) inputNombre.value = cli.nombre;
+                                if (cli) inputNombre.value = cli.nombre;
             }
         }
 

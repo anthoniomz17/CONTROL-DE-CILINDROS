@@ -303,7 +303,10 @@
 
 <script>
     // NUEVO CEREBRO DEL SISTEMA: URL DE GOOGLE APPS SCRIPT
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzSRjEvgZOfChoxGILL_1rgtLJwwZqYn2XJP7am1JI4o0W4qXHzdara8RuQTm38lo6q/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz3e2axkGwfLMi0Hy3xKaDZe-tC2p_RXyLFt-t3JCm3lYwV5LrlnFXoLJOOTF35Ve0V/exec";
+    // Normalizan RUT y Folio para que "12.345.678-9" = "123456789" y "847" = "0847"
+    function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
+    function normalizarFolioJS(f) { return String(f == null ? "" : f).trim().replace(/^#/, "").padStart(4, "0"); }
 
     let nubeLista = false;
     const gases = ["Argón", "Mezcla", "Nitrógeno", "Oxígeno", "CO2", "Acetileno"];
@@ -450,14 +453,15 @@
                 });
                 cajaSugerencias.style.display = 'block';
             } else { cajaSugerencias.style.display = 'none'; }
-        } else if (origen === 'rut') {
+                } else if (origen === 'rut') {
             const rut = inputRut.value.trim();
             if (rut !== '') {
-                let cli = baseClientes.find(c => c.rut.includes(rut));
-                if(cli) inputNombre.value = cli.nombre;
+                // Solo llena el nombre si el RUT coincide EXACTO (sin considerar puntos ni guiones)
+                const cli = baseClientes.find(c => normalizarRUTJS(c.rut) === normalizarRUTJS(rut));
+                if (cli) inputNombre.value = cli.nombre;
             }
         }
-    }
+
     document.addEventListener('click', function(e) { if(e.target.id !== 'nombre-ent') { const caja = document.getElementById('sugerencias-clientes'); if(caja) caja.style.display = 'none'; } });
 
     function autocompletarCilindro() {
@@ -642,9 +646,11 @@
                 let nFolio = resultado.folio;
 
                 // Actualizar arrays locales para no tener que recargar toda la página
-                if(modoOp !== 'INVENTARIO' && entidad && rut !== "Sin Registro" && rut !== "N/A" && !baseClientes.find(c => c.rut === rut)) {
-                    baseClientes.push({ nombre: entidad, rut: rut });
+                               if(modoOp !== 'INVENTARIO' && entidad && rut !== "Sin Registro" && rut !== "N/A") {
+                    const existeCliente = baseClientes.find(c => normalizarRUTJS(c.rut) === normalizarRUTJS(rut));
+                    if (!existeCliente) baseClientes.push({ nombre: entidad, rut: rut, preciosEspeciales: null });
                 }
+
 
                 operacionActual.forEach(item => {
                     let phFinal = item.ph || (estadoCilindros[item.serie] ? estadoCilindros[item.serie].ph : "");
@@ -1195,20 +1201,35 @@ async function anularCilindroHistorico(ts, serie, folio) {
         ejecutarAnulacion({ tipoAnulacion: 'VALE', folio: folio });
     }
 
-    async function ejecutarAnulacion(payload) {
-        // Bloqueo de seguridad: Validar que sea el último movimiento físico
-        if (payload.tipoAnulacion === 'CILINDRO') {
-            let movs = historialGlobal.filter(h => h.serie === payload.serie);
-            if (movs.length > 0 && movs[0].ts != payload.ts) {
-                alert("❌ BLOQUEADO: Este no es el último movimiento del cilindro. Debes eliminar primero los movimientos más recientes de esta serie."); return;
+        async function ejecutarAnulacion(payload) {
+
+        // --- VALE COMPLETO ---
+        if (payload.tipoAnulacion === 'VALE') {
+            payload.folio = normalizarFolioJS(payload.folio);
+
+            const cilindrosVale = historialGlobal.filter(h => h.folio === payload.folio);
+            if (cilindrosVale.length === 0) {
+                alert("❌ No se encontró ese vale en el registro. Recarga la página e intenta de nuevo.");
+                return;
             }
-        } else if (payload.tipoAnulacion === 'VALE') {
-            let cilindrosVale = historialGlobal.filter(h => h.folio === payload.folio);
-            for (let c of cilindrosVale) {
-                let movs = historialGlobal.filter(h => h.serie === c.serie);
-                if (movs.length > 0 && movs[0].ts != c.ts) {
-                    alert(`❌ BLOQUEADO: El cilindro ${c.serie} tuvo movimientos posteriores a este vale. No puedes anular todo el vale masivamente.`); return;
-                }
+
+            // Aviso, no bloqueo: el servidor restaura cada cilindro a su último estado válido
+            const posteriores = [];
+            cilindrosVale.forEach(c => {
+                const movs = historialGlobal.filter(h => h.serie === c.serie);
+                if (movs.length && String(movs[0].ts) !== String(c.ts)) posteriores.push(c.serie);
+            });
+            if (posteriores.length) {
+                if (!confirm(`⚠️ Los cilindros ${posteriores.join(', ')} tienen movimientos posteriores a este vale.\nSe anulará el vale y cada cilindro volverá a su último estado válido. ¿Continuar igual?`)) return;
+            }
+        }
+
+        // --- CILINDRO INDIVIDUAL (mantiene el bloqueo de seguridad) ---
+        if (payload.tipoAnulacion === 'CILINDRO') {
+            const movs = historialGlobal.filter(h => h.serie === payload.serie);
+            if (movs.length && String(movs[0].ts) !== String(payload.ts)) {
+                alert("❌ BLOQUEADO: Este no es el último movimiento del cilindro. Debes eliminar primero los movimientos más recientes de esta serie.");
+                return;
             }
         }
 
@@ -1217,17 +1238,23 @@ async function anularCilindroHistorico(ts, serie, folio) {
             const urlFinal = SCRIPT_URL + "?accion=anularOperacion&datos=" + encodeURIComponent(JSON.stringify(payload));
             const response = await fetch(urlFinal);
             const data = await response.json();
+
             if (data.exito) {
                 alert("✅ Anulación completada con éxito. Actualizando sistema...");
-                await iniciarSistema(); // Descarga todo de nuevo limpio
-                document.getElementById('input-busqueda').value = '';
+                await iniciarSistema(); // Recarga todo desde Sheets, ya sin el movimiento anulado
+                const inputBus = document.getElementById('input-busqueda');
+                if (inputBus) inputBus.value = '';
                 document.getElementById('resultados-busqueda').innerHTML = '';
-            } else { throw new Error(data.mensaje); }
+            } else {
+                throw new Error(data.mensaje || "Error al anular.");
+            }
         } catch (err) {
+            console.error(err);
             alert("❌ Error: " + err.message);
             document.getElementById('nube-status').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i> Error';
         }
-    }    
+    }
+    
 </script>
 </body>
 </html>

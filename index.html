@@ -303,7 +303,7 @@
 
 <script>
     // NUEVO CEREBRO DEL SISTEMA: URL DE GOOGLE APPS SCRIPT
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz3e2axkGwfLMi0Hy3xKaDZe-tC2p_RXyLFt-t3JCm3lYwV5LrlnFXoLJOOTF35Ve0V/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCWt78nu9zkoMT3ShLRX15wi5adjfPTQLdCRCgpqI2qScPh_j2w0HN9EGIdxqSzWgh/exec";
     // Normalizan RUT y Folio para que "12.345.678-9" = "123456789" y "847" = "0847"
     function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
     function normalizarFolioJS(f) { return String(f == null ? "" : f).trim().replace(/^#/, "").padStart(4, "0"); }

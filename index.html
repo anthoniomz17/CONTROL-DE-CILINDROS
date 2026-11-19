@@ -276,14 +276,7 @@ input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radiu
 </div>
 <script>
 // NUEVO CEREBRO DEL SISTEMA: URL DE GOOGLE APPS SCRIPT
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzgMkRZPzeGfFFtPdxzHQlfG9fzVMho1rHE_nOZprSEDzDD2fhkYJgPGLcwWyLC1pgK/exec";
-
-// Normalizan RUT y Folio para que "12.345.678-9" = "123456789" y "847" = "0847"
-function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
-function normalizarFolioJS(f) { return String(f == null ? "" : f).trim().replace(/^#/, "").padStart(4, "0"); }
-
-let nubeLista = false;
-const gases = ["Argón", "Mezcla", "Nitrógeno", "Oxígeno", "CO2", "Acetileno"];
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyHRp9Jh0f5tzi_r7LkvwSfZkKheoUK1vMF-YJ6lLg_NqohCrYy0GcnPLQad2vtcGtO/exec";
 
 // Normalizan RUT, Folio, Serie, Gas, Ubicación y Estado
 function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
@@ -361,6 +354,7 @@ try {
 document.getElementById('nube-status').innerHTML = '<i class="fas fa-sync fa-spin"></i> Descargando Excel...';
 
 const respuesta = await fetch(SCRIPT_URL + "?accion=descargarTodo");
+if (!respuesta.ok) throw new Error("El servidor respondió con error HTTP " + respuesta.status);
 const data = await respuesta.json();
 
 if(data.exito) {
@@ -558,7 +552,10 @@ const estPrevio = normalizarEstadoJS(estadoActual.estadoFisico);
 
 // Protección contra cambio accidental de gas
 if (gasPrevio && gasPrevio !== normalizarGasJS(gas)) {
-if(!confirm(`⚠️ ADVERTENCIA DE GAS:\nEl cilindro ${serie} es de ${gasPrevio}.\nIntentas registrarlo como ${gas}.\n¿Confirmar cambio físico?`)) return;
+if(!confirm(`⚠️ ADVERTENCIA DE GAS:\
+El cilindro ${serie} es de ${gasPrevio}.\
+Intentas registrarlo como ${gas}.\
+¿Confirmar cambio físico?`)) return;
 }
 
 if (modoActual === 'INVENTARIO' && ubiPrevia === 'Local') {
@@ -567,14 +564,18 @@ alert(`❌ ERROR: El cilindro ${serie} ya existe en bodega (${estPrevio} en Loca
 if (modoActual === 'CLIENTE') {
 if (tipo === 'ENTREGA') {
 if (ubiPrevia !== 'Local' || estPrevio !== 'Lleno') {
-alert(`❌ ERROR FÍSICO: El cilindro ${serie} NO ESTÁ LLENO EN EL LOCAL.\nEstado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} NO ESTÁ LLENO EN EL LOCAL.\
+Estado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
 }
 } else if (tipo === 'RECEPCION') {
 if (ubiPrevia !== 'En Cliente') {
 alert(`❌ ERROR FÍSICO: El cilindro ${serie} figura en [${ubiPrevia}] (${estPrevio}), no está prestado.`); return;
 }
 if (estadoActual.entidadActual && estadoActual.entidadActual.toLowerCase() !== entidad.toLowerCase() && entidad !== 'Bodega Local') {
-if(!confirm(`⚠️ ADVERTENCIA DE CRUCE:\nEste cilindro fue entregado a [${estadoActual.entidadActual}].\nLo estás recibiendo de [${entidad}].\n¿Continuar y reasignar?`)) return;
+if(!confirm(`⚠️ ADVERTENCIA DE CRUCE:\
+Este cilindro fue entregado a [${estadoActual.entidadActual}].\
+Lo estás recibiendo de [${entidad}].\
+¿Continuar y reasignar?`)) return;
 }
 }
 } else if (modoActual === 'PROVEEDOR') {
@@ -584,7 +585,8 @@ alert(`❌ ERROR FÍSICO: El cilindro ${serie} ya figura en el Local (${estPrevi
 }
 } else if (tipo === 'RECEPCION') {
 if (ubiPrevia !== 'Local' || (estPrevio !== 'Vacío' && estPrevio !== 'Rechazado')) {
-alert(`❌ ERROR FÍSICO: Solo puedes enviar a proveedor cilindros VACÍOS o RECHAZADOS que estén en tu LOCAL.\nEstado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
+alert(`❌ ERROR FÍSICO: Solo puedes enviar a proveedor cilindros VACÍOS o RECHAZADOS que estén en tu LOCAL.\
+Estado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
 }
 }
 }
@@ -798,21 +800,6 @@ html += '</tbody></table>';
 if (found) { div.innerHTML = html; div.style.display = 'block'; div.scrollIntoView({ behavior: 'smooth' }); }
 }
 
-function verDetalleBodega(estado, gas) {
-let div = document.getElementById('detalle-dashboard');
-let html = `<h3 style="margin-top:0; color:var(--primary);"><i class="fas fa-boxes"></i> Detalle: ${gas} (${estado} en Local)</h3>`;
-html += '<table class="data-table"><thead><tr><th>N° Vale</th><th>Serie</th><th>Metraje</th><th>Último Movimiento</th><th>Fecha</th></tr></thead><tbody>';
-let found = false;
-for (let s in estadoCilindros) {
-let cil = estadoCilindros[s];
-if (cil.ubicacion === 'Local' && cil.estadoFisico === estado && cil.gas === gas) {
-found = true; html += `<tr><td>#${cil.folio}</td><td><strong>${s}</strong></td><td>${cil.m3}</td><td>${cil.ultimoMov}</td><td>${cil.fecha}</td></tr>`;
-}
-}
-html += '</tbody></table>';
-if (found) { div.innerHTML = html; div.style.display = 'block'; div.scrollIntoView({ behavior: 'smooth' }); }
-}
-
 function calcularAlertasPH() {
 const tbodyAlertas = document.getElementById('lista-alertas-ph');
 const tbodyTodo = document.getElementById('lista-todo-ph');
@@ -831,7 +818,7 @@ for (let s in estadoCilindros) {
 let cil = estadoCilindros[s];
 if (!cil.ph) continue;
 
-if (s.toLowerCase().includes(filtro) || cil.gas.toLowerCase().includes(filtro)) {
+if (s.toLowerCase().includes(filtro) || String(cil.gas || "").toLowerCase().includes(filtro)) {
 tbodyTodo.innerHTML += `<tr><td><strong>${s}</strong></td><td>${cil.gas}</td><td>${cil.ph}</td><td>${cil.ubicacion}</td></tr>`;
 }
 
@@ -907,7 +894,7 @@ h += '</tbody></table>';
 }
 else if(tipo === 'cliente') {
 h += `<table class="data-table" id="tabla-resultados"><thead><tr>${th(0,'Vale')}${th(1,'Serie')}${th(2,'Gas')}${th(3,'Movimiento')}<th>Acción</th></tr></thead><tbody>`;
-let filtrados = historialGlobal.filter(x => String(x.entidad).toLowerCase().includes(term) || (x.rut && String(x.rut).toLowerCase().includes(term)));
+let filtrados = historialGlobal.filter(x => String(x.entidad || "").toLowerCase().includes(term) || normalizarRUTJS(x.rut).includes(normalizarRUTJS(term)));
 if(filtrados.length === 0) return div.innerHTML = '<p>Sin registros para este cliente.</p>';
 filtrados.forEach(f => h += `<tr><td>#${f.folio}</td><td><strong>${f.serie}</strong></td><td>${f.gas}</td><td>${f.descripcionMov}</td><td><button onclick="anularCilindroHistorico(${f.ts}, '${f.serie}', '${f.folio}')" class="btn-peligro">❌ Eliminar</button></td></tr>`);
 h += '</tbody></table>';
@@ -1257,7 +1244,7 @@ svg { max-width: 58mm; max-height: 28mm; display: block; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"><\/script>
 <script>
 window.onload = function() {
-JsBarcode("#codigo-barras-svg", "${serieActual}", { format: "CODE128", width: 2, height: 40, displayValue: true, fontSize: 18, fontOptions: "bold", margin: 0, textMargin: 4 });
+JsBarcode("#codigo-barras-svg", JSON.stringify(serieActual), { format: "CODE128", width: 2, height: 40, displayValue: true, fontSize: 18, fontOptions: "bold", margin: 0, textMargin: 4 });
 setTimeout(function() { window.print(); window.close(); }, 500);
 };
 <\/script>
@@ -1268,12 +1255,15 @@ printWindow.document.close();
 }
 
 async function anularCilindroHistorico(ts, serie, folio) {
-if (!confirm(`¿Seguro de ELIMINAR el movimiento del cilindro ${serie} en el Vale #${folio}?\nEl cilindro volverá a su estado anterior.`)) return;
+if (!confirm(`¿Seguro de ELIMINAR el movimiento del cilindro ${serie} en el Vale #${folio}?\
+El cilindro volverá a su estado anterior.`)) return;
 ejecutarAnulacion({ tipoAnulacion: 'CILINDRO', ts: ts, serie: serie });
 }
 
 async function anularValeCompleto(folio) {
-if (!confirm(`⚠️ PELIGRO:\n¿Seguro de ANULAR COMPLETAMENTE el Vale #${folio}?\nTodos los cilindros de este vale volverán a su estado anterior.`)) return;
+if (!confirm(`⚠️ PELIGRO:\
+¿Seguro de ANULAR COMPLETAMENTE el Vale #${folio}?\
+Todos los cilindros de este vale volverán a su estado anterior.`)) return;
 ejecutarAnulacion({ tipoAnulacion: 'VALE', folio: folio });
 }
 
@@ -1292,7 +1282,8 @@ const movs = historialGlobal.filter(h => h.serie === c.serie);
 if (movs.length && String(movs[0].ts) !== String(c.ts)) posteriores.push(c.serie);
 });
 if (posteriores.length) {
-if (!confirm(`⚠️ Los cilindros ${posteriores.join(', ')} tienen movimientos posteriores a este vale.\nSe anulará el vale y cada cilindro volverá a su último estado válido. ¿Continuar igual?`)) return;
+if (!confirm(`⚠️ Los cilindros ${posteriores.join(', ')} tienen movimientos posteriores a este vale.\
+Se anulará el vale y cada cilindro volverá a su último estado válido. ¿Continuar igual?`)) return;
 }
 }
 // --- CILINDRO INDIVIDUAL (mantiene el bloqueo de seguridad) ---
@@ -1305,8 +1296,11 @@ return;
 }
 document.getElementById('nube-status').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Anulando...';
 try {
-const urlFinal = SCRIPT_URL + "?accion=anularOperacion&datos=" + encodeURIComponent(JSON.stringify(payload));
-const response = await fetch(urlFinal);
+const response = await fetch(SCRIPT_URL, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: 'accion=anularOperacion&datos=' + encodeURIComponent(JSON.stringify(payload))
+});
 const data = await response.json();
 if (data.exito) {
 alert("✅ Anulación completada con éxito. Actualizando sistema...");

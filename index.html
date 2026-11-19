@@ -276,11 +276,52 @@ input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radiu
 </div>
 <script>
 // NUEVO CEREBRO DEL SISTEMA: URL DE GOOGLE APPS SCRIPT
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCWt78nu9zkoMT3ShLRX15wi5adjfPTQLdCRCgpqI2qScPh_j2w0HN9EGIdxqSzWgh/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzgMkRZPzeGfFFtPdxzHQlfG9fzVMho1rHE_nOZprSEDzDD2fhkYJgPGLcwWyLC1pgK/exec";
 
 // Normalizan RUT y Folio para que "12.345.678-9" = "123456789" y "847" = "0847"
 function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
 function normalizarFolioJS(f) { return String(f == null ? "" : f).trim().replace(/^#/, "").padStart(4, "0"); }
+
+let nubeLista = false;
+const gases = ["Argón", "Mezcla", "Nitrógeno", "Oxígeno", "CO2", "Acetileno"];
+
+// Normalizan RUT, Folio, Serie, Gas, Ubicación y Estado
+function normalizarRUTJS(rut) { return String(rut == null ? "" : rut).replace(/[^0-9kK]/g, "").toUpperCase(); }
+function normalizarFolioJS(f) {
+const limpio = String(f == null ? "" : f).trim().replace(/^#/, "");
+if (!limpio) return "";
+return /^\d+$/.test(limpio) ? limpio.padStart(4, "0") : limpio.toUpperCase();
+}
+function normalizarSerieJS(s) { return String(s == null ? "" : s).trim().toUpperCase(); }
+function normalizarGasJS(g) {
+const limpio = String(g == null ? "" : g).trim();
+const clave = limpio.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+if (clave === "argon") return "Argón";
+if (clave === "mezcla") return "Mezcla";
+if (clave === "nitrogeno") return "Nitrógeno";
+if (clave === "oxigeno") return "Oxígeno";
+if (clave === "co2") return "CO2";
+if (clave === "acetileno") return "Acetileno";
+return limpio;
+}
+function normalizarUbicacionJS(u) {
+const limpio = String(u == null ? "" : u).trim();
+const clave = limpio.toLowerCase();
+if (clave === "local" || clave === "bodega local") return "Local";
+if (clave === "en cliente" || clave === "cliente") return "En Cliente";
+if (clave === "en proveedor" || clave === "proveedor") return "En Proveedor";
+if (clave === "eliminado") return "Eliminado";
+return limpio;
+}
+function normalizarEstadoJS(e) {
+const limpio = String(e == null ? "" : e).trim();
+const clave = limpio.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+if (clave === "lleno") return "Lleno";
+if (clave === "vacio") return "Vacío";
+if (clave === "rechazado") return "Rechazado";
+if (clave === "eliminado") return "Eliminado";
+return limpio;
+}
 
 let nubeLista = false;
 const gases = ["Argón", "Mezcla", "Nitrógeno", "Oxígeno", "CO2", "Acetileno"];
@@ -325,38 +366,62 @@ const data = await respuesta.json();
 if(data.exito) {
 // 1. Cargar Folio
 data.configuracion.forEach(row => {
-if (row.Parametro === 'Folio') folioActual = parseInt(row.Valor) || 1;
+if (String(row.Parametro || '').trim() === 'Folio') folioActual = parseInt(row.Valor, 10) || 1;
 });
 
 // 2. Cargar Clientes
 baseClientes = data.clientes.map(c => ({
-nombre: String(c.Nombre || ''),
-rut: String(c.RUT || ''),
+nombre: String(c.Nombre || '').trim(),
+rut: String(c.RUT || '').trim(),
 preciosEspeciales: parsearPreciosSeguros(c['Precios Especiales'])
 }));
 
-// 3. Cargar Cilindros de Bodega
+// 3. Cargar Historial primero (Filtrando anulados) para tener referencia del último movimiento real
+historialGlobal = data.historial.filter(h => String(h.Modo || '').trim() !== 'ANULADO').map(h => ({
+folio: normalizarFolioJS(h.Folio), fecha: String(h.Fecha || '').trim(), ts: Number(h.Timestamp) || 0,
+serie: normalizarSerieJS(h.Serie), gas: normalizarGasJS(h.Gas), m3: String(h.Metraje || '').trim(), ph: String(h.PH || '').trim(),
+entidad: String(h.Entidad || '').trim(), rut: String(h.RUT || '').trim(), tipoMov: String(h['Tipo Mov'] || '').trim(),
+descripcionMov: String(h.Descripcion || '').trim(), ubicacionFutura: normalizarUbicacionJS(h['Ubicacion Futura']),
+estadoFuturo: normalizarEstadoJS(h['Estado Futuro']), modo: String(h.Modo || '').trim(),
+costoHistorico: h['Costo Historico'] || 0, ventaHistorica: h['Venta Historica'] || 0
+})).filter(h => h.serie && h.serie !== "UNDEFINED").sort((a, b) => b.ts - a.ts);
+
+const ultimoMovPorSerie = {};
+historialGlobal.forEach(h => {
+if (!ultimoMovPorSerie[h.serie]) ultimoMovPorSerie[h.serie] = h;
+});
+
+// 4. Cargar Cilindros de Bodega normalizados
 estadoCilindros = {};
 data.cilindros.forEach(c => {
-if (c.Serie) {
-estadoCilindros[String(c.Serie).trim()] = {
-gas: String(c.Gas || ''), m3: String(c.Metraje || ''), ph: String(c.PH || ''),
-ubicacion: String(c.Ubicacion || ''), estadoFisico: String(c['Estado Fisico'] || ''),
-entidadActual: String(c['Entidad Actual'] || ''), ultimoMov: String(c['Ultimo Mov'] || ''),
-fecha: String(c.Fecha || ''), folio: String(c.Folio || ''), costoAdquisicion: c['Costo Adquisicion'] || 0
+const serieNorm = normalizarSerieJS(c.Serie);
+if (serieNorm) {
+estadoCilindros[serieNorm] = {
+gas: normalizarGasJS(c.Gas), m3: String(c.Metraje || '').trim(), ph: String(c.PH || '').trim(),
+ubicacion: normalizarUbicacionJS(c.Ubicacion), estadoFisico: normalizarEstadoJS(c['Estado Fisico']),
+entidadActual: String(c['Entidad Actual'] || '').trim(), ultimoMov: String(c['Ultimo Mov'] || '').trim(),
+fecha: String(c.Fecha || '').trim(), folio: normalizarFolioJS(c.Folio), costoAdquisicion: c['Costo Adquisicion'] || 0
 };
 }
 });
 
-// 4. Cargar Historial (Filtrando anulados)
-historialGlobal = data.historial.filter(h => h.Modo !== 'ANULADO').map(h => ({
-folio: String(h.Folio || '').padStart(4, '0'), fecha: String(h.Fecha || ''), ts: h.Timestamp,
-serie: String(h.Serie || '').trim(), gas: String(h.Gas || ''), m3: String(h.Metraje || ''), ph: String(h.PH || ''),
-entidad: String(h.Entidad || ''), rut: String(h.RUT || ''), tipoMov: String(h['Tipo Mov'] || ''),
-descripcionMov: String(h.Descripcion || ''), ubicacionFutura: String(h['Ubicacion Futura'] || ''),
-estadoFuturo: String(h['Estado Futuro'] || ''), modo: String(h.Modo || ''),
-costoHistorico: h['Costo Historico'] || 0, ventaHistorica: h['Venta Historica'] || 0
-})).filter(h => h.serie && h.serie !== "undefined").sort((a, b) => b.ts - a.ts);
+// 5. Reconciliar con el último movimiento real de Historial (evita desfase por filas duplicadas en Cilindros)
+Object.keys(ultimoMovPorSerie).forEach(serieNorm => {
+const mov = ultimoMovPorSerie[serieNorm];
+const prev = estadoCilindros[serieNorm];
+estadoCilindros[serieNorm] = {
+gas: mov.gas || (prev ? prev.gas : ''),
+m3: mov.m3 || (prev ? prev.m3 : ''),
+ph: mov.ph || (prev ? prev.ph : ''),
+ubicacion: mov.ubicacionFutura || (prev ? prev.ubicacion : ''),
+estadoFisico: mov.estadoFuturo || (prev ? prev.estadoFisico : ''),
+entidadActual: mov.ubicacionFutura === 'Local' ? 'Bodega Local' : (mov.entidad || (prev ? prev.entidadActual : '')),
+ultimoMov: mov.descripcionMov || (prev ? prev.ultimoMov : ''),
+fecha: mov.fecha || (prev ? prev.fecha : ''),
+folio: mov.folio || (prev ? prev.folio : ''),
+costoAdquisicion: mov.costoHistorico || (prev ? prev.costoAdquisicion : 0)
+};
+});
 
 nubeLista = true;
 actualizarDashboard();
@@ -483,39 +548,52 @@ if(!serie) { alert("⚠️ ATENCIÓN: Escanee el N° de Serie."); return; }
 
 if (operacionActual.find(o => o.serie === serie)) { alert(`⚠️ La serie ${serie} ya está en la lista actual.`); return; }
 
-let estadoActual = estadoCilindros[serie];
-if (estadoActual) {
+let estadoActual = estadoCilindros[normalizarSerieJS(serie)];
+const existeActivo = estadoActual && normalizarUbicacionJS(estadoActual.ubicacion) !== 'Eliminado';
+
+if (existeActivo) {
+const gasPrevio = normalizarGasJS(estadoActual.gas);
+const ubiPrevia = normalizarUbicacionJS(estadoActual.ubicacion);
+const estPrevio = normalizarEstadoJS(estadoActual.estadoFisico);
+
 // Protección contra cambio accidental de gas
-if (estadoActual.gas && estadoActual.gas !== gas) {
-if(!confirm(`⚠️ ADVERTENCIA DE GAS:\nEl cilindro ${serie} es de ${estadoActual.gas}.\nIntentas registrarlo como ${gas}.\n¿Confirmar cambio físico?`)) return;
+if (gasPrevio && gasPrevio !== normalizarGasJS(gas)) {
+if(!confirm(`⚠️ ADVERTENCIA DE GAS:\nEl cilindro ${serie} es de ${gasPrevio}.\nIntentas registrarlo como ${gas}.\n¿Confirmar cambio físico?`)) return;
 }
 
-if (modoActual === 'INVENTARIO' && estadoActual.ubicacion === 'Local') {
-alert(`❌ ERROR: El cilindro ${serie} ya existe en bodega.`); return;
+if (modoActual === 'INVENTARIO' && ubiPrevia === 'Local') {
+alert(`❌ ERROR: El cilindro ${serie} ya existe en bodega (${estPrevio} en Local).`); return;
 }
 if (modoActual === 'CLIENTE') {
 if (tipo === 'ENTREGA') {
-if (estadoActual.ubicacion !== 'Local' || estadoActual.estadoFisico !== 'Lleno') {
-alert(`❌ ERROR FÍSICO: El cilindro ${serie} NO ESTÁ LLENO EN EL LOCAL.\nEstado actual: [${estadoActual.estadoFisico}] en [${estadoActual.ubicacion}].`); return;
+if (ubiPrevia !== 'Local' || estPrevio !== 'Lleno') {
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} NO ESTÁ LLENO EN EL LOCAL.\nEstado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
 }
 } else if (tipo === 'RECEPCION') {
-if (estadoActual.ubicacion !== 'En Cliente') {
-alert(`❌ ERROR FÍSICO: El cilindro ${serie} figura en [${estadoActual.ubicacion}], no está prestado.`); return;
+if (ubiPrevia !== 'En Cliente') {
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} figura en [${ubiPrevia}] (${estPrevio}), no está prestado.`); return;
 }
-if (estadoActual.entidadActual && estadoActual.entidadActual !== entidad && entidad !== 'Bodega Local') {
+if (estadoActual.entidadActual && estadoActual.entidadActual.toLowerCase() !== entidad.toLowerCase() && entidad !== 'Bodega Local') {
 if(!confirm(`⚠️ ADVERTENCIA DE CRUCE:\nEste cilindro fue entregado a [${estadoActual.entidadActual}].\nLo estás recibiendo de [${entidad}].\n¿Continuar y reasignar?`)) return;
 }
 }
 } else if (modoActual === 'PROVEEDOR') {
 if (tipo === 'ENTREGA') {
-if (estadoActual.ubicacion === 'Local') {
-alert(`❌ ERROR FÍSICO: El cilindro ${serie} ya figura en el Local.`); return;
+if (ubiPrevia === 'Local') {
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} ya figura en el Local (${estPrevio}).`); return;
 }
 } else if (tipo === 'RECEPCION') {
-if (estadoActual.ubicacion !== 'Local' || (estadoActual.estadoFisico !== 'Vacío' && estadoActual.estadoFisico !== 'Rechazado')) {
-alert(`❌ ERROR FÍSICO: Solo puedes enviar cilindros VACÍOS o RECHAZADOS que estén en tu LOCAL.`); return;
+if (ubiPrevia !== 'Local' || (estPrevio !== 'Vacío' && estPrevio !== 'Rechazado')) {
+alert(`❌ ERROR FÍSICO: Solo puedes enviar a proveedor cilindros VACÍOS o RECHAZADOS que estén en tu LOCAL.\nEstado actual: [${estPrevio}] en [${ubiPrevia}].`); return;
 }
 }
+}
+} else {
+if (modoActual === 'CLIENTE' && tipo === 'ENTREGA') {
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} no figura en el Local como Lleno.`); return;
+}
+if (modoActual === 'PROVEEDOR' && tipo === 'RECEPCION') {
+alert(`❌ ERROR FÍSICO: El cilindro ${serie} no figura en el Local como Vacío o Rechazado.`); return;
 }
 }
 
@@ -682,10 +760,13 @@ function actualizarDashboard() {
 gases.forEach(g => { inventario.llenos[g] = 0; inventario.vacios[g] = 0; inventario.rechazos[g] = 0; });
 for (let s in estadoCilindros) {
 let cil = estadoCilindros[s];
-if (cil.ubicacion === 'Local') {
-if (cil.estadoFisico === 'Lleno') inventario.llenos[cil.gas]++;
-else if (cil.estadoFisico === 'Vacío') inventario.vacios[cil.gas]++;
-else if (cil.estadoFisico === 'Rechazado') inventario.rechazos[cil.gas]++;
+let ubi = normalizarUbicacionJS(cil.ubicacion);
+let est = normalizarEstadoJS(cil.estadoFisico);
+let gasNorm = normalizarGasJS(cil.gas);
+if (ubi === 'Local' && gases.includes(gasNorm)) {
+if (est === 'Lleno') inventario.llenos[gasNorm]++;
+else if (est === 'Vacío') inventario.vacios[gasNorm]++;
+else if (est === 'Rechazado') inventario.rechazos[gasNorm]++;
 }
 }
 const render = (id, data, title, estadoFisico) => {
@@ -697,6 +778,24 @@ else { h += `<div class="gas-item"><span style="color:#7f8c8d;">${g}:</span> <st
 document.getElementById(id).innerHTML = h;
 };
 render('grid-llenos', inventario.llenos, "LLENOS LOCAL", "Lleno"); render('grid-vacios', inventario.vacios, "VACÍOS LOCAL", "Vacío"); render('grid-rechazos', inventario.rechazos, "RECHAZADOS", "Rechazado");
+}
+
+function verDetalleBodega(estado, gas) {
+let div = document.getElementById('detalle-dashboard');
+let html = `<h3 style="margin-top:0; color:var(--primary);"><i class="fas fa-boxes"></i> Detalle: ${gas} (${estado} en Local)</h3>`;
+html += '<table class="data-table"><thead><tr><th>N° Vale</th><th>Serie</th><th>Metraje</th><th>Último Movimiento</th><th>Fecha</th></tr></thead><tbody>';
+let found = false;
+for (let s in estadoCilindros) {
+let cil = estadoCilindros[s];
+let ubi = normalizarUbicacionJS(cil.ubicacion);
+let est = normalizarEstadoJS(cil.estadoFisico);
+let gasNorm = normalizarGasJS(cil.gas);
+if (ubi === 'Local' && est === estado && gasNorm === gas) {
+found = true; html += `<tr><td>#${cil.folio}</td><td><strong>${s}</strong></td><td>${cil.m3}</td><td>${cil.ultimoMov}</td><td>${cil.fecha}</td></tr>`;
+}
+}
+html += '</tbody></table>';
+if (found) { div.innerHTML = html; div.style.display = 'block'; div.scrollIntoView({ behavior: 'smooth' }); }
 }
 
 function verDetalleBodega(estado, gas) {
